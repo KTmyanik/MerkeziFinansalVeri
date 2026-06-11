@@ -4,7 +4,7 @@ GO
 -- cfg.VeriKaynagi (veritabani-baglantisi.js DATABASES defaults)
 MERGE cfg.VeriKaynagi AS tgt
 USING (VALUES
-    (N'TDSTG',   N'sql-stg-01.sirket.local',  N'TDSTG',   1433, N'sql'),
+    (N'TDSTG',   N'10.13.8.238',  N'TDSTG',   1433, N'windows'),
     (N'TDMAIN',  N'sql-main-01.sirket.local', N'TDMAIN',  1433, N'sql'),
     (N'TDREPORT', N'sql-rpt-01.sirket.local', N'TDREPORT', 1433, N'sql')
 ) AS src(KatmanKodu, Sunucu, Veritabani, Port, KimlikDogrulama)

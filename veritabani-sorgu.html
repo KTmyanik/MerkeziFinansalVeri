@@ -169,7 +169,7 @@
     <div class="page-area">
         <div class="page-body">
             <div class="vs-layout">
-                <div class="vs-placeholder">
+                <header class="vs-intro">
                     <div class="vs-placeholder-icon" aria-hidden="true">
                         <i class="ti ti-database"></i>
                     </div>
@@ -180,16 +180,44 @@
                         <span class="vs-db-tag main">TDMAIN</span>
                         <span class="vs-db-tag report">TDREPORT</span>
                     </div>
-                    <span class="vs-coming">Yakında — sorgu arayüzü geliştirme aşamasında</span>
-                </div>
+                </header>
+
+                <section class="vs-workspace">
+                    <div class="vs-toolbar">
+                        <div class="vs-status">
+                            <span class="vs-status-dot" id="vsStatusDot"></span>
+                            <span id="vsStatusText">Bağlantı kontrol edilmedi</span>
+                        </div>
+                        <div class="vs-toolbar-actions">
+                            <label class="vs-katman-label" for="vsKatmanSelect">Veritabanı</label>
+                            <select id="vsKatmanSelect" class="vs-katman-select"></select>
+                            <button type="button" class="rbtn vs-action-btn" id="vsTestBtn">Bağlantıyı Test Et</button>
+                            <button type="button" class="rbtn vs-action-btn primary" id="vsRunBtn">Sorguyu Çalıştır</button>
+                        </div>
+                    </div>
+                    <p class="vs-hint">Yalnızca SELECT sorguları. Ctrl+Enter ile çalıştırın. Bağlantı ayarları: Yönetim → Veritabanı Bağlantısı.</p>
+                    <label class="vs-query-label" for="vsQueryInput">SQL sorgusu</label>
+                    <textarea id="vsQueryInput" class="vs-query-input" rows="8" spellcheck="false"></textarea>
+                    <div class="vs-meta" id="vsQueryMeta"></div>
+                    <div class="vs-error" id="vsQueryError" hidden></div>
+                    <div class="vs-results-wrap" id="vsResultsWrap">
+                        <table class="vs-results-table">
+                            <thead id="vsResultsHead"></thead>
+                            <tbody id="vsResultsBody"></tbody>
+                        </table>
+                        <p class="vs-empty" id="vsResultsEmpty">Sorgu çalıştırıldığında sonuçlar burada listelenir.</p>
+                    </div>
+                </section>
             </div>
         </div>
     </div>
 
 </div>
 
+<script src="api-client.js"></script>
 <script src="status-bar.js"></script>
 <script src="theme-toggle.js"></script>
 <script src="ribbon-shell.js"></script>
+<script src="veritabani-sorgu.js"></script>
 </body>
 </html>
