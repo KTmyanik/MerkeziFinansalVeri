@@ -1,7 +1,15 @@
 using MerkeziFinansalVeri.Api.Middleware;
 using MerkeziFinansalVeri.Infrastructure;
+using MerkeziFinansalVeri.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+
+var repoRoot = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", ".."));
+var tdConfigPath = Path.Combine(repoRoot, "config", "td-connections.json");
+if (File.Exists(tdConfigPath))
+{
+    builder.Configuration.AddJsonFile(tdConfigPath, optional: true, reloadOnChange: true);
+}
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
@@ -33,6 +41,20 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    try
+    {
+        var bootstrap = scope.ServiceProvider.GetRequiredService<VeriKaynagiBootstrap>();
+        await bootstrap.EnsureSeededAsync();
+    }
+    catch (Exception ex)
+    {
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        logger.LogWarning(ex, "Veri kaynağı bootstrap atlandı — veritabanı henüz hazır olmayabilir.");
+    }
+}
 
 if (app.Environment.IsDevelopment())
 {

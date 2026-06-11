@@ -43,7 +43,7 @@ cd database
 Alternatif şema (İngilizce, `TDUTIL.VIB`):
 
 ```powershell
-sqlcmd -S localhost -E -i database\migrations\002_tdutil_vib_schema_en.sql
+sqlcmd -S srvdev\PASIFIK -E -i database\migrations\002_tdutil_vib_schema_en.sql
 ```
 
 Ardından seed scriptlerini sırayla çalıştırın: `001_ref_seed.sql` … `005_audit_seed.sql`

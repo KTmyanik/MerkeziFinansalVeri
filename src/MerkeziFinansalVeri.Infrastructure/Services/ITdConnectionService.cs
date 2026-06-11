@@ -4,6 +4,8 @@ public interface ITdConnectionService
 {
     Task<bool> TestConnectionAsync(string katmanKodu, CancellationToken cancellationToken = default);
 
+    Task<bool> TestConnectionAsync(TdConnectionParams parameters, CancellationToken cancellationToken = default);
+
     Task<TdQueryResult> ExecuteReadOnlyQueryAsync(
         string katmanKodu,
         string sql,

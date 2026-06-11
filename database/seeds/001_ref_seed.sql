@@ -1,21 +1,21 @@
-USE [MGTV_Uygulama];
+USE [TDUTIL];
 GO
 
--- ref.Ekip
-MERGE ref.Ekip AS tgt
+-- VIB.ref_Team
+MERGE VIB.ref_Team AS tgt
 USING (VALUES
     (N'Banka Ekip 1'),
     (N'Banka Ekip 2'),
     (N'Banka Ekip 3'),
     (N'Merkezi Kontrol')
-) AS src(Ad)
-ON tgt.Ad = src.Ad AND tgt.SilindiMi = 0
+) AS src(Name)
+ON tgt.Name = src.Name AND tgt.IsDeleted = 0
 WHEN NOT MATCHED BY TARGET THEN
-    INSERT (Ad) VALUES (src.Ad);
+    INSERT (Name) VALUES (src.Name);
 GO
 
--- ref.Sayfa (PAGE_MENU)
-MERGE ref.Sayfa AS tgt
+-- VIB.ref_Page (PAGE_MENU)
+MERGE VIB.ref_Page AS tgt
 USING (VALUES
     (N'portal',           N'PORTAL',              N'ti-home',         N'Portal',                              N'HomePage.html',                        1),
     (N'surec',            N'SÜREÇ',               N'ti-timeline',     N'Süreç',                               N'surec.html',                           2),
@@ -34,48 +34,48 @@ USING (VALUES
     (N'kullanici-yonetimi', N'YÖNETİM',           N'ti-users',        N'Kullanıcı Yönetimi',                  N'kullanici-yonetimi.html',             15),
     (N'kisi-yetkileri',   N'YÖNETİM',             N'ti-users',        N'Kişi Bazlı Yetkiler',                 N'kisi-yetkileri.html',                 16),
     (N'veritabani-baglantisi', N'YÖNETİM',         N'ti-users',        N'Veritabanı Bağlantısı',               N'veritabani-baglantisi.html',          17)
-) AS src(SayfaId, Bolum, BolumIkon, Etiket, Href, Sira)
-ON tgt.SayfaId = src.SayfaId
+) AS src(PageId, Section, SectionIcon, Label, Href, SortOrder)
+ON tgt.PageId = src.PageId
 WHEN MATCHED THEN
     UPDATE SET
-        Bolum = src.Bolum,
-        BolumIkon = src.BolumIkon,
-        Etiket = src.Etiket,
+        Section = src.Section,
+        SectionIcon = src.SectionIcon,
+        Label = src.Label,
         Href = src.Href,
-        Sira = src.Sira
+        SortOrder = src.SortOrder
 WHEN NOT MATCHED BY TARGET THEN
-    INSERT (SayfaId, Bolum, BolumIkon, Etiket, Href, Sira)
-    VALUES (src.SayfaId, src.Bolum, src.BolumIkon, src.Etiket, src.Href, src.Sira);
+    INSERT (PageId, Section, SectionIcon, Label, Href, SortOrder)
+    VALUES (src.PageId, src.Section, src.SectionIcon, src.Label, src.Href, src.SortOrder);
 GO
 
--- ref.VeriKatmani (COCKPIT_COLUMNS)
-MERGE ref.VeriKatmani AS tgt
+-- VIB.ref_DataLayer (COCKPIT_COLUMNS)
+MERGE VIB.ref_DataLayer AS tgt
 USING (VALUES
     (N'TDSTG',   N'Staging — ham veri katmanı',      N'teal',   1),
     (N'TDMAIN',  N'Ana veri — kurumsal çekirdek',    N'blue',   2),
     (N'TDREPORT', N'Raporlama — analitik katman',    N'purple', 3)
-) AS src(KatmanKodu, Rol, Tema, Sira)
-ON tgt.KatmanKodu = src.KatmanKodu
+) AS src(LayerCode, LayerRole, Theme, SortOrder)
+ON tgt.LayerCode = src.LayerCode
 WHEN MATCHED THEN
-    UPDATE SET Rol = src.Rol, Tema = src.Tema, Sira = src.Sira
+    UPDATE SET LayerRole = src.LayerRole, Theme = src.Theme, SortOrder = src.SortOrder
 WHEN NOT MATCHED BY TARGET THEN
-    INSERT (KatmanKodu, Rol, Tema, Sira)
-    VALUES (src.KatmanKodu, src.Rol, src.Tema, src.Sira);
+    INSERT (LayerCode, LayerRole, Theme, SortOrder)
+    VALUES (src.LayerCode, src.LayerRole, src.Theme, src.SortOrder);
 GO
 
--- ref.VeriDomain (DATASET_DOMAINS)
-MERGE ref.VeriDomain AS tgt
+-- VIB.ref_DataDomain (DATASET_DOMAINS)
+MERGE VIB.ref_DataDomain AS tgt
 USING (VALUES
     (N'fon-kullandirim', N'Fon Kullandırım', N'teal',   1),
     (N'hazine',          N'Hazine',          N'blue',   2),
     (N'mevduat',         N'Mevduat',         N'purple', 3),
     (N'masraf',          N'Masraf',          N'amber',  4),
     (N'reeskont',        N'Reeskont',        N'rose',   5)
-) AS src(DomainId, Ad, Tema, Sira)
+) AS src(DomainId, Name, Theme, SortOrder)
 ON tgt.DomainId = src.DomainId
 WHEN MATCHED THEN
-    UPDATE SET Ad = src.Ad, Tema = src.Tema, Sira = src.Sira
+    UPDATE SET Name = src.Name, Theme = src.Theme, SortOrder = src.SortOrder
 WHEN NOT MATCHED BY TARGET THEN
-    INSERT (DomainId, Ad, Tema, Sira)
-    VALUES (src.DomainId, src.Ad, src.Tema, src.Sira);
+    INSERT (DomainId, Name, Theme, SortOrder)
+    VALUES (src.DomainId, src.Name, src.Theme, src.SortOrder);
 GO

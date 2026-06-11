@@ -1,362 +1,418 @@
--- MGTV_Uygulama initial schema
--- Collation: Turkish_CI_AS recommended for production
+/*
+    MGTV Application — initial schema (English identifiers)
+    Single schema: VIB
+    Table naming: {logical_schema}_{TableName}  e.g. VIB.cfg_DataSource
+    Database: TDUTIL
+    Recommended collation: Turkish_CI_AS
+*/
 
-IF NOT EXISTS (SELECT 1 FROM sys.databases WHERE name = N'MGTV_Uygulama')
+IF NOT EXISTS (SELECT 1 FROM sys.databases WHERE name = N'TDUTIL')
 BEGIN
-    CREATE DATABASE [MGTV_Uygulama];
+    CREATE DATABASE [TDUTIL];
 END
 GO
 
-USE [MGTV_Uygulama];
+USE [TDUTIL];
 GO
 
-IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = N'ref') EXEC('CREATE SCHEMA ref');
-IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = N'ops') EXEC('CREATE SCHEMA ops');
-IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = N'sec') EXEC('CREATE SCHEMA sec');
-IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = N'cfg') EXEC('CREATE SCHEMA cfg');
-IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = N'audit') EXEC('CREATE SCHEMA audit');
+IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = N'VIB')
+    EXEC('CREATE SCHEMA VIB');
 GO
 
--- ref.Ekip
-IF OBJECT_ID(N'ref.Ekip', N'U') IS NULL
-CREATE TABLE ref.Ekip (
-    EkipId          INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    Ad              NVARCHAR(100) NOT NULL,
-    Aktif           BIT NOT NULL DEFAULT 1,
-    OlusturmaZamani DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-    GuncellemeZamani DATETIME2 NULL,
-    SilindiMi       BIT NOT NULL DEFAULT 0
+/* =============================================================================
+   REFERENCE  (logical schema: ref)
+   ============================================================================= */
+
+IF OBJECT_ID(N'VIB.ref_Team', N'U') IS NULL
+CREATE TABLE VIB.ref_Team (
+    TeamId          INT             IDENTITY(1,1) NOT NULL,
+    Name            NVARCHAR(100)   NOT NULL,
+    IsActive        BIT             NOT NULL CONSTRAINT DF_ref_Team_IsActive DEFAULT (1),
+    CreatedAt       DATETIME2       NOT NULL CONSTRAINT DF_ref_Team_CreatedAt DEFAULT (SYSUTCDATETIME()),
+    UpdatedAt       DATETIME2       NULL,
+    IsDeleted       BIT             NOT NULL CONSTRAINT DF_ref_Team_IsDeleted DEFAULT (0),
+    CONSTRAINT PK_ref_Team PRIMARY KEY (TeamId)
 );
 GO
 
--- ref.Sayfa
-IF OBJECT_ID(N'ref.Sayfa', N'U') IS NULL
-CREATE TABLE ref.Sayfa (
-    SayfaId         NVARCHAR(50) NOT NULL PRIMARY KEY,
-    Bolum           NVARCHAR(100) NOT NULL,
-    BolumIkon       NVARCHAR(50) NULL,
-    Etiket          NVARCHAR(200) NOT NULL,
-    Href            NVARCHAR(500) NULL,
-    Sira            INT NOT NULL DEFAULT 0
+IF OBJECT_ID(N'VIB.ref_Page', N'U') IS NULL
+CREATE TABLE VIB.ref_Page (
+    PageId          NVARCHAR(50)    NOT NULL,
+    Section         NVARCHAR(100)   NOT NULL,
+    SectionIcon     NVARCHAR(50)    NULL,
+    Label           NVARCHAR(200)   NOT NULL,
+    Href            NVARCHAR(500)   NULL,
+    SortOrder       INT             NOT NULL CONSTRAINT DF_ref_Page_SortOrder DEFAULT (0),
+    CONSTRAINT PK_ref_Page PRIMARY KEY (PageId)
 );
 GO
 
--- ref.VeriKatmani
-IF OBJECT_ID(N'ref.VeriKatmani', N'U') IS NULL
-CREATE TABLE ref.VeriKatmani (
-    KatmanKodu      NVARCHAR(20) NOT NULL PRIMARY KEY,
-    Rol             NVARCHAR(200) NOT NULL,
-    Tema            NVARCHAR(20) NOT NULL,
-    Sira            INT NOT NULL DEFAULT 0
+IF OBJECT_ID(N'VIB.ref_DataLayer', N'U') IS NULL
+CREATE TABLE VIB.ref_DataLayer (
+    LayerCode       NVARCHAR(20)    NOT NULL,
+    LayerRole       NVARCHAR(200)   NOT NULL,
+    Theme           NVARCHAR(20)    NOT NULL,
+    SortOrder       INT             NOT NULL CONSTRAINT DF_ref_DataLayer_SortOrder DEFAULT (0),
+    CONSTRAINT PK_ref_DataLayer PRIMARY KEY (LayerCode)
 );
 GO
 
--- ref.VeriDomain
-IF OBJECT_ID(N'ref.VeriDomain', N'U') IS NULL
-CREATE TABLE ref.VeriDomain (
-    DomainId        NVARCHAR(50) NOT NULL PRIMARY KEY,
-    Ad              NVARCHAR(100) NOT NULL,
-    Tema            NVARCHAR(20) NOT NULL,
-    Sira            INT NOT NULL DEFAULT 0
+IF OBJECT_ID(N'VIB.ref_DataDomain', N'U') IS NULL
+CREATE TABLE VIB.ref_DataDomain (
+    DomainId        NVARCHAR(50)    NOT NULL,
+    Name            NVARCHAR(100)   NOT NULL,
+    Theme           NVARCHAR(20)    NOT NULL,
+    SortOrder       INT             NOT NULL CONSTRAINT DF_ref_DataDomain_SortOrder DEFAULT (0),
+    CONSTRAINT PK_ref_DataDomain PRIMARY KEY (DomainId)
 );
 GO
 
--- sec.Rol
-IF OBJECT_ID(N'sec.Rol', N'U') IS NULL
-CREATE TABLE sec.Rol (
-    RolId           NVARCHAR(50) NOT NULL PRIMARY KEY,
-    Ad              NVARCHAR(100) NOT NULL,
-    Aciklama        NVARCHAR(500) NULL,
-    RozetSinifi     NVARCHAR(50) NULL
+/* =============================================================================
+   SECURITY  (logical schema: sec)
+   ============================================================================= */
+
+IF OBJECT_ID(N'VIB.sec_Role', N'U') IS NULL
+CREATE TABLE VIB.sec_Role (
+    RoleId          NVARCHAR(50)    NOT NULL,
+    Name            NVARCHAR(100)   NOT NULL,
+    Description     NVARCHAR(500)   NULL,
+    BadgeClass      NVARCHAR(50)    NULL,
+    CONSTRAINT PK_sec_Role PRIMARY KEY (RoleId)
 );
 GO
 
--- sec.Kullanici
-IF OBJECT_ID(N'sec.Kullanici', N'U') IS NULL
-CREATE TABLE sec.Kullanici (
-    KullaniciId     INT NOT NULL PRIMARY KEY,
-    Ad              NVARCHAR(200) NOT NULL,
-    Eposta          NVARCHAR(200) NOT NULL,
-    RolId           NVARCHAR(50) NOT NULL REFERENCES sec.Rol(RolId),
-    Durum           NVARCHAR(20) NOT NULL DEFAULT N'active',
-    SonGiris        DATETIME2 NULL,
-    OlusturmaZamani DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-    GuncellemeZamani DATETIME2 NULL,
-    SilindiMi       BIT NOT NULL DEFAULT 0
+IF OBJECT_ID(N'VIB.sec_User', N'U') IS NULL
+CREATE TABLE VIB.sec_User (
+    UserId          INT             NOT NULL,
+    Name            NVARCHAR(200)   NOT NULL,
+    Email           NVARCHAR(200)   NOT NULL,
+    RoleId          NVARCHAR(50)    NOT NULL,
+    Status          NVARCHAR(20)    NOT NULL CONSTRAINT DF_sec_User_Status DEFAULT (N'active'),
+    LastLoginAt     DATETIME2       NULL,
+    CreatedAt       DATETIME2       NOT NULL CONSTRAINT DF_sec_User_CreatedAt DEFAULT (SYSUTCDATETIME()),
+    UpdatedAt       DATETIME2       NULL,
+    IsDeleted       BIT             NOT NULL CONSTRAINT DF_sec_User_IsDeleted DEFAULT (0),
+    CONSTRAINT PK_sec_User PRIMARY KEY (UserId),
+    CONSTRAINT FK_sec_User_Role FOREIGN KEY (RoleId) REFERENCES VIB.sec_Role (RoleId)
 );
 GO
 
--- sec.RolSayfaYetki
-IF OBJECT_ID(N'sec.RolSayfaYetki', N'U') IS NULL
-CREATE TABLE sec.RolSayfaYetki (
-    RolId           NVARCHAR(50) NOT NULL REFERENCES sec.Rol(RolId),
-    SayfaId         NVARCHAR(50) NOT NULL REFERENCES ref.Sayfa(SayfaId),
-    PRIMARY KEY (RolId, SayfaId)
+IF OBJECT_ID(N'VIB.sec_RolePagePermission', N'U') IS NULL
+CREATE TABLE VIB.sec_RolePagePermission (
+    RoleId          NVARCHAR(50)    NOT NULL,
+    PageId          NVARCHAR(50)    NOT NULL,
+    CONSTRAINT PK_sec_RolePagePermission PRIMARY KEY (RoleId, PageId),
+    CONSTRAINT FK_sec_RolePagePermission_Role FOREIGN KEY (RoleId) REFERENCES VIB.sec_Role (RoleId),
+    CONSTRAINT FK_sec_RolePagePermission_Page FOREIGN KEY (PageId) REFERENCES VIB.ref_Page (PageId)
 );
 GO
 
--- sec.KullaniciSayfaYetki
-IF OBJECT_ID(N'sec.KullaniciSayfaYetki', N'U') IS NULL
-CREATE TABLE sec.KullaniciSayfaYetki (
-    KullaniciId     INT NOT NULL REFERENCES sec.Kullanici(KullaniciId),
-    SayfaId         NVARCHAR(50) NOT NULL REFERENCES ref.Sayfa(SayfaId),
-    IzinVerildi     BIT NOT NULL DEFAULT 1,
-    PRIMARY KEY (KullaniciId, SayfaId)
+IF OBJECT_ID(N'VIB.sec_UserPagePermission', N'U') IS NULL
+CREATE TABLE VIB.sec_UserPagePermission (
+    UserId          INT             NOT NULL,
+    PageId          NVARCHAR(50)    NOT NULL,
+    IsGranted       BIT             NOT NULL CONSTRAINT DF_sec_UserPagePermission_IsGranted DEFAULT (1),
+    CONSTRAINT PK_sec_UserPagePermission PRIMARY KEY (UserId, PageId),
+    CONSTRAINT FK_sec_UserPagePermission_User FOREIGN KEY (UserId) REFERENCES VIB.sec_User (UserId),
+    CONSTRAINT FK_sec_UserPagePermission_Page FOREIGN KEY (PageId) REFERENCES VIB.ref_Page (PageId)
 );
 GO
 
--- cfg.VeriKaynagi
-IF OBJECT_ID(N'cfg.VeriKaynagi', N'U') IS NULL
-CREATE TABLE cfg.VeriKaynagi (
-    KaynakId        INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    KatmanKodu      NVARCHAR(20) NOT NULL REFERENCES ref.VeriKatmani(KatmanKodu),
-    Sunucu          NVARCHAR(200) NOT NULL,
-    Veritabani      NVARCHAR(100) NOT NULL,
-    Port            INT NOT NULL DEFAULT 1433,
-    KimlikDogrulama NVARCHAR(20) NOT NULL DEFAULT N'sql',
-    KullaniciAdi    NVARCHAR(100) NULL,
-    SifreSaklandi   BIT NOT NULL DEFAULT 0,
-    Durum           NVARCHAR(20) NOT NULL DEFAULT N'unknown',
-    GuncellemeZamani DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+/* =============================================================================
+   CONFIGURATION  (logical schema: cfg)
+   ============================================================================= */
+
+IF OBJECT_ID(N'VIB.cfg_DataSource', N'U') IS NULL
+CREATE TABLE VIB.cfg_DataSource (
+    SourceId            INT             IDENTITY(1,1) NOT NULL,
+    LayerCode           NVARCHAR(20)    NOT NULL,
+    ServerName          NVARCHAR(200)   NOT NULL,
+    DatabaseName        NVARCHAR(100)   NOT NULL,
+    Port                INT             NOT NULL CONSTRAINT DF_cfg_DataSource_Port DEFAULT (1433),
+    AuthenticationMode  NVARCHAR(20)    NOT NULL CONSTRAINT DF_cfg_DataSource_AuthMode DEFAULT (N'sql'),
+    Username            NVARCHAR(100)   NULL,
+    IsPasswordStored    BIT             NOT NULL CONSTRAINT DF_cfg_DataSource_IsPasswordStored DEFAULT (0),
+    Status              NVARCHAR(20)    NOT NULL CONSTRAINT DF_cfg_DataSource_Status DEFAULT (N'unknown'),
+    UpdatedAt           DATETIME2       NOT NULL CONSTRAINT DF_cfg_DataSource_UpdatedAt DEFAULT (SYSUTCDATETIME()),
+    CONSTRAINT PK_cfg_DataSource PRIMARY KEY (SourceId),
+    CONSTRAINT FK_cfg_DataSource_DataLayer FOREIGN KEY (LayerCode) REFERENCES VIB.ref_DataLayer (LayerCode)
 );
 GO
 
--- cfg.SistemParametre
-IF OBJECT_ID(N'cfg.SistemParametre', N'U') IS NULL
-CREATE TABLE cfg.SistemParametre (
-    Anahtar         NVARCHAR(100) NOT NULL PRIMARY KEY,
-    Deger           NVARCHAR(500) NOT NULL,
-    GuncellemeZamani DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+IF OBJECT_ID(N'VIB.cfg_SystemParameter', N'U') IS NULL
+CREATE TABLE VIB.cfg_SystemParameter (
+    ParameterKey    NVARCHAR(100)   NOT NULL,
+    ParameterValue  NVARCHAR(500)   NOT NULL,
+    UpdatedAt       DATETIME2       NOT NULL CONSTRAINT DF_cfg_SystemParameter_UpdatedAt DEFAULT (SYSUTCDATETIME()),
+    CONSTRAINT PK_cfg_SystemParameter PRIMARY KEY (ParameterKey)
 );
 GO
 
--- ops.KurumsalHesap
-IF OBJECT_ID(N'ops.KurumsalHesap', N'U') IS NULL
-CREATE TABLE ops.KurumsalHesap (
-    HesapNo         INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    HesapId         INT NOT NULL,
-    HesapAdi        NVARCHAR(200) NOT NULL,
-    EkipId          INT NOT NULL REFERENCES ref.Ekip(EkipId),
-    BeklenenAksiyon NVARCHAR(100) NULL,
-    Kaynak          NVARCHAR(50) NULL,
-    KayitTarihi     DATE NOT NULL,
-    GuncellemeTarihi DATETIME2 NOT NULL,
-    OlusturanKullaniciId INT NULL REFERENCES sec.Kullanici(KullaniciId),
-    GuncelleyenKullaniciId INT NULL REFERENCES sec.Kullanici(KullaniciId),
-    OlusturmaZamani DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-    SilindiMi       BIT NOT NULL DEFAULT 0,
-    CONSTRAINT UQ_KurumsalHesap_HesapId UNIQUE (HesapId)
+/* =============================================================================
+   OPERATIONS  (logical schema: ops)
+   ============================================================================= */
+
+IF OBJECT_ID(N'VIB.ops_CorporateAccount', N'U') IS NULL
+CREATE TABLE VIB.ops_CorporateAccount (
+    AccountNo           INT             IDENTITY(1,1) NOT NULL,
+    AccountId           INT             NOT NULL,
+    AccountName         NVARCHAR(200)   NOT NULL,
+    TeamId              INT             NOT NULL,
+    ExpectedAction      NVARCHAR(100)   NULL,
+    Source              NVARCHAR(50)    NULL,
+    RecordDate          DATE            NOT NULL,
+    UpdatedAt           DATETIME2       NOT NULL,
+    CreatedByUserId     INT             NULL,
+    UpdatedByUserId     INT             NULL,
+    CreatedAt           DATETIME2       NOT NULL CONSTRAINT DF_ops_CorporateAccount_CreatedAt DEFAULT (SYSUTCDATETIME()),
+    IsDeleted           BIT             NOT NULL CONSTRAINT DF_ops_CorporateAccount_IsDeleted DEFAULT (0),
+    CONSTRAINT PK_ops_CorporateAccount PRIMARY KEY (AccountNo),
+    CONSTRAINT UQ_ops_CorporateAccount_AccountId UNIQUE (AccountId),
+    CONSTRAINT FK_ops_CorporateAccount_Team FOREIGN KEY (TeamId) REFERENCES VIB.ref_Team (TeamId),
+    CONSTRAINT FK_ops_CorporateAccount_CreatedBy FOREIGN KEY (CreatedByUserId) REFERENCES VIB.sec_User (UserId),
+    CONSTRAINT FK_ops_CorporateAccount_UpdatedBy FOREIGN KEY (UpdatedByUserId) REFERENCES VIB.sec_User (UserId)
 );
 GO
 
--- ops.MutabakatDonem
-IF OBJECT_ID(N'ops.MutabakatDonem', N'U') IS NULL
-CREATE TABLE ops.MutabakatDonem (
-    DonemId         INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    YilAy           CHAR(7) NOT NULL,
-    Etiket          NVARCHAR(100) NOT NULL,
-    Durum           NVARCHAR(20) NOT NULL,
-    HesapSayisi     INT NOT NULL DEFAULT 0,
-    FarkVerenSayisi INT NOT NULL DEFAULT 0,
-    KapanisTarihi   DATE NULL,
-    AktifMi         BIT NOT NULL DEFAULT 0,
-    OlusturmaZamani DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-    GuncellemeZamani DATETIME2 NULL,
-    CONSTRAINT UQ_MutabakatDonem_YilAy UNIQUE (YilAy)
+IF OBJECT_ID(N'VIB.ops_ReconciliationPeriod', N'U') IS NULL
+CREATE TABLE VIB.ops_ReconciliationPeriod (
+    PeriodId            INT             IDENTITY(1,1) NOT NULL,
+    YearMonth           CHAR(7)         NOT NULL,
+    Label               NVARCHAR(100)   NOT NULL,
+    Status              NVARCHAR(20)    NOT NULL,
+    AccountCount        INT             NOT NULL CONSTRAINT DF_ops_ReconciliationPeriod_AccountCount DEFAULT (0),
+    VarianceCount       INT             NOT NULL CONSTRAINT DF_ops_ReconciliationPeriod_VarianceCount DEFAULT (0),
+    ClosedDate          DATE            NULL,
+    IsActive            BIT             NOT NULL CONSTRAINT DF_ops_ReconciliationPeriod_IsActive DEFAULT (0),
+    CreatedAt           DATETIME2       NOT NULL CONSTRAINT DF_ops_ReconciliationPeriod_CreatedAt DEFAULT (SYSUTCDATETIME()),
+    UpdatedAt           DATETIME2       NULL,
+    CONSTRAINT PK_ops_ReconciliationPeriod PRIMARY KEY (PeriodId),
+    CONSTRAINT UQ_ops_ReconciliationPeriod_YearMonth UNIQUE (YearMonth)
 );
 GO
 
--- ops.FarkVerenHesap
-IF OBJECT_ID(N'ops.FarkVerenHesap', N'U') IS NULL
-CREATE TABLE ops.FarkVerenHesap (
-    FarkId          INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    DonemId         INT NOT NULL REFERENCES ops.MutabakatDonem(DonemId),
-    HesapKodu       NVARCHAR(50) NOT NULL,
-    HesapAdi        NVARCHAR(200) NOT NULL,
-    EkipId          INT NOT NULL REFERENCES ref.Ekip(EkipId),
-    MizanBakiye     DECIMAL(18,2) NOT NULL DEFAULT 0,
-    KartonBakiye    DECIMAL(18,2) NOT NULL DEFAULT 0,
-    Fark            AS (MizanBakiye - KartonBakiye) PERSISTED,
-    Durum           NVARCHAR(20) NOT NULL DEFAULT N'acik',
-    OlusturmaZamani DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-    GuncellemeZamani DATETIME2 NULL,
-    SilindiMi       BIT NOT NULL DEFAULT 0,
-    CONSTRAINT UQ_FarkVerenHesap_DonemHesap UNIQUE (DonemId, HesapKodu)
+IF OBJECT_ID(N'VIB.ops_VarianceAccount', N'U') IS NULL
+CREATE TABLE VIB.ops_VarianceAccount (
+    VarianceId              INT             IDENTITY(1,1) NOT NULL,
+    PeriodId                INT             NOT NULL,
+    AccountCode             NVARCHAR(50)    NOT NULL,
+    AccountName             NVARCHAR(200)   NOT NULL,
+    TeamId                  INT             NOT NULL,
+    TrialBalanceAmount      DECIMAL(18,2)   NOT NULL CONSTRAINT DF_ops_VarianceAccount_TrialBalance DEFAULT (0),
+    CardTableAmount         DECIMAL(18,2)   NOT NULL CONSTRAINT DF_ops_VarianceAccount_CardTable DEFAULT (0),
+    VarianceAmount          AS (TrialBalanceAmount - CardTableAmount) PERSISTED,
+    Status                  NVARCHAR(20)    NOT NULL CONSTRAINT DF_ops_VarianceAccount_Status DEFAULT (N'open'),
+    CreatedAt               DATETIME2       NOT NULL CONSTRAINT DF_ops_VarianceAccount_CreatedAt DEFAULT (SYSUTCDATETIME()),
+    UpdatedAt               DATETIME2       NULL,
+    IsDeleted               BIT             NOT NULL CONSTRAINT DF_ops_VarianceAccount_IsDeleted DEFAULT (0),
+    CONSTRAINT PK_ops_VarianceAccount PRIMARY KEY (VarianceId),
+    CONSTRAINT UQ_ops_VarianceAccount_PeriodAccount UNIQUE (PeriodId, AccountCode),
+    CONSTRAINT FK_ops_VarianceAccount_Period FOREIGN KEY (PeriodId) REFERENCES VIB.ops_ReconciliationPeriod (PeriodId),
+    CONSTRAINT FK_ops_VarianceAccount_Team FOREIGN KEY (TeamId) REFERENCES VIB.ref_Team (TeamId)
 );
 GO
 
--- ops.SurecDataset
-IF OBJECT_ID(N'ops.SurecDataset', N'U') IS NULL
-CREATE TABLE ops.SurecDataset (
-    DatasetId       INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    Kod             NVARCHAR(50) NOT NULL,
-    Etiket          NVARCHAR(200) NOT NULL,
-    KatmanKodu      NVARCHAR(20) NULL REFERENCES ref.VeriKatmani(KatmanKodu),
-    DomainId        NVARCHAR(50) NULL REFERENCES ref.VeriDomain(DomainId),
-    Sira            INT NOT NULL DEFAULT 0,
-    CONSTRAINT UQ_SurecDataset_Kod UNIQUE (Kod)
+IF OBJECT_ID(N'VIB.ops_ProcessDataset', N'U') IS NULL
+CREATE TABLE VIB.ops_ProcessDataset (
+    DatasetId       INT             IDENTITY(1,1) NOT NULL,
+    Code            NVARCHAR(50)    NOT NULL,
+    Label           NVARCHAR(200)   NOT NULL,
+    LayerCode       NVARCHAR(20)    NULL,
+    DomainId        NVARCHAR(50)    NULL,
+    SortOrder       INT             NOT NULL CONSTRAINT DF_ops_ProcessDataset_SortOrder DEFAULT (0),
+    CONSTRAINT PK_ops_ProcessDataset PRIMARY KEY (DatasetId),
+    CONSTRAINT UQ_ops_ProcessDataset_Code UNIQUE (Code),
+    CONSTRAINT FK_ops_ProcessDataset_DataLayer FOREIGN KEY (LayerCode) REFERENCES VIB.ref_DataLayer (LayerCode),
+    CONSTRAINT FK_ops_ProcessDataset_DataDomain FOREIGN KEY (DomainId) REFERENCES VIB.ref_DataDomain (DomainId)
 );
 GO
 
--- ops.SurecGorevTanim
-IF OBJECT_ID(N'ops.SurecGorevTanim', N'U') IS NULL
-CREATE TABLE ops.SurecGorevTanim (
-    GorevTanimId    INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    DatasetId       INT NOT NULL REFERENCES ops.SurecDataset(DatasetId),
-    Etiket          NVARCHAR(100) NOT NULL,
-    Sira            INT NOT NULL DEFAULT 0
+IF OBJECT_ID(N'VIB.ops_ProcessTaskDefinition', N'U') IS NULL
+CREATE TABLE VIB.ops_ProcessTaskDefinition (
+    TaskDefinitionId    INT             IDENTITY(1,1) NOT NULL,
+    DatasetId           INT             NOT NULL,
+    Label               NVARCHAR(100)   NOT NULL,
+    SortOrder           INT             NOT NULL CONSTRAINT DF_ops_ProcessTaskDefinition_SortOrder DEFAULT (0),
+    CONSTRAINT PK_ops_ProcessTaskDefinition PRIMARY KEY (TaskDefinitionId),
+    CONSTRAINT FK_ops_ProcessTaskDefinition_Dataset FOREIGN KEY (DatasetId) REFERENCES VIB.ops_ProcessDataset (DatasetId)
 );
 GO
 
--- ops.SurecGorevDurum
-IF OBJECT_ID(N'ops.SurecGorevDurum', N'U') IS NULL
-CREATE TABLE ops.SurecGorevDurum (
-    GorevDurumId    INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    GorevTanimId    INT NOT NULL REFERENCES ops.SurecGorevTanim(GorevTanimId),
-    DonemId         INT NULL REFERENCES ops.MutabakatDonem(DonemId),
-    Durum           NVARCHAR(20) NOT NULL DEFAULT N'pending',
-    SonGuncelleme   DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-    CONSTRAINT UQ_SurecGorevDurum UNIQUE (GorevTanimId, DonemId)
+IF OBJECT_ID(N'VIB.ops_ProcessTaskStatus', N'U') IS NULL
+CREATE TABLE VIB.ops_ProcessTaskStatus (
+    TaskStatusId        INT             IDENTITY(1,1) NOT NULL,
+    TaskDefinitionId    INT             NOT NULL,
+    PeriodId            INT             NULL,
+    Status              NVARCHAR(20)    NOT NULL CONSTRAINT DF_ops_ProcessTaskStatus_Status DEFAULT (N'pending'),
+    LastUpdatedAt       DATETIME2       NOT NULL CONSTRAINT DF_ops_ProcessTaskStatus_LastUpdatedAt DEFAULT (SYSUTCDATETIME()),
+    CONSTRAINT PK_ops_ProcessTaskStatus PRIMARY KEY (TaskStatusId),
+    CONSTRAINT UQ_ops_ProcessTaskStatus_TaskPeriod UNIQUE (TaskDefinitionId, PeriodId),
+    CONSTRAINT FK_ops_ProcessTaskStatus_TaskDefinition FOREIGN KEY (TaskDefinitionId) REFERENCES VIB.ops_ProcessTaskDefinition (TaskDefinitionId),
+    CONSTRAINT FK_ops_ProcessTaskStatus_Period FOREIGN KEY (PeriodId) REFERENCES VIB.ops_ReconciliationPeriod (PeriodId)
 );
 GO
 
--- ops.SurecGorevYenidenBaslatmaLog
-IF OBJECT_ID(N'ops.SurecGorevYenidenBaslatmaLog', N'U') IS NULL
-CREATE TABLE ops.SurecGorevYenidenBaslatmaLog (
-    LogId           INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    GorevTanimId    INT NOT NULL REFERENCES ops.SurecGorevTanim(GorevTanimId),
-    KullaniciId     INT NULL REFERENCES sec.Kullanici(KullaniciId),
-    OlusturmaZamani DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+IF OBJECT_ID(N'VIB.ops_ProcessTaskRestartLog', N'U') IS NULL
+CREATE TABLE VIB.ops_ProcessTaskRestartLog (
+    LogId               INT             IDENTITY(1,1) NOT NULL,
+    TaskDefinitionId    INT             NOT NULL,
+    UserId              INT             NULL,
+    CreatedAt           DATETIME2       NOT NULL CONSTRAINT DF_ops_ProcessTaskRestartLog_CreatedAt DEFAULT (SYSUTCDATETIME()),
+    CONSTRAINT PK_ops_ProcessTaskRestartLog PRIMARY KEY (LogId),
+    CONSTRAINT FK_ops_ProcessTaskRestartLog_TaskDefinition FOREIGN KEY (TaskDefinitionId) REFERENCES VIB.ops_ProcessTaskDefinition (TaskDefinitionId),
+    CONSTRAINT FK_ops_ProcessTaskRestartLog_User FOREIGN KEY (UserId) REFERENCES VIB.sec_User (UserId)
 );
 GO
 
--- ops.VeriKalitesiKural
-IF OBJECT_ID(N'ops.VeriKalitesiKural', N'U') IS NULL
-CREATE TABLE ops.VeriKalitesiKural (
-    KuralId         NVARCHAR(20) NOT NULL PRIMARY KEY,
-    Ad              NVARCHAR(200) NOT NULL,
-    Alan            NVARCHAR(100) NOT NULL,
-    Onem            NVARCHAR(20) NOT NULL,
-    Durum           NVARCHAR(20) NOT NULL DEFAULT N'Aktif',
-    SqlIfade        NVARCHAR(MAX) NULL,
-    OlusturmaZamani DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-    GuncellemeZamani DATETIME2 NULL
+IF OBJECT_ID(N'VIB.ops_DataQualityRule', N'U') IS NULL
+CREATE TABLE VIB.ops_DataQualityRule (
+    RuleId          NVARCHAR(20)    NOT NULL,
+    Name            NVARCHAR(200)   NOT NULL,
+    Domain          NVARCHAR(100)   NOT NULL,
+    Severity        NVARCHAR(20)    NOT NULL,
+    Status          NVARCHAR(20)    NOT NULL CONSTRAINT DF_ops_DataQualityRule_Status DEFAULT (N'Active'),
+    SqlExpression   NVARCHAR(MAX)   NULL,
+    CreatedAt       DATETIME2       NOT NULL CONSTRAINT DF_ops_DataQualityRule_CreatedAt DEFAULT (SYSUTCDATETIME()),
+    UpdatedAt       DATETIME2       NULL,
+    CONSTRAINT PK_ops_DataQualityRule PRIMARY KEY (RuleId)
 );
 GO
 
--- ops.VeriKalitesiKuralSonuc
-IF OBJECT_ID(N'ops.VeriKalitesiKuralSonuc', N'U') IS NULL
-CREATE TABLE ops.VeriKalitesiKuralSonuc (
-    SonucId         INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    CalistirmaTarihi DATE NOT NULL,
-    KuralId         NVARCHAR(20) NOT NULL REFERENCES ops.VeriKalitesiKural(KuralId),
-    GecenSayi       INT NOT NULL DEFAULT 0,
-    HataliSayi      INT NOT NULL DEFAULT 0,
-    Sonuc           NVARCHAR(20) NOT NULL,
-    DetayJson       NVARCHAR(MAX) NULL
-);
-GO
-CREATE NONCLUSTERED INDEX IX_VeriKalitesiKuralSonuc_Tarih ON ops.VeriKalitesiKuralSonuc (CalistirmaTarihi DESC, KuralId);
-GO
-
--- ops.KayitliSorgu
-IF OBJECT_ID(N'ops.KayitliSorgu', N'U') IS NULL
-CREATE TABLE ops.KayitliSorgu (
-    SorguId         INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    Ad              NVARCHAR(200) NOT NULL,
-    KatmanKodu      NVARCHAR(20) NOT NULL,
-    SqlMetin        NVARCHAR(MAX) NOT NULL,
-    OlusturanKullaniciId INT NULL REFERENCES sec.Kullanici(KullaniciId),
-    OlusturmaZamani DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+IF OBJECT_ID(N'VIB.ops_DataQualityRuleResult', N'U') IS NULL
+CREATE TABLE VIB.ops_DataQualityRuleResult (
+    ResultId        INT             IDENTITY(1,1) NOT NULL,
+    ExecutionDate   DATE            NOT NULL,
+    RuleId          NVARCHAR(20)    NOT NULL,
+    PassedCount     INT             NOT NULL CONSTRAINT DF_ops_DataQualityRuleResult_PassedCount DEFAULT (0),
+    FailedCount     INT             NOT NULL CONSTRAINT DF_ops_DataQualityRuleResult_FailedCount DEFAULT (0),
+    Result          NVARCHAR(20)    NOT NULL,
+    DetailJson      NVARCHAR(MAX)   NULL,
+    CONSTRAINT PK_ops_DataQualityRuleResult PRIMARY KEY (ResultId),
+    CONSTRAINT FK_ops_DataQualityRuleResult_Rule FOREIGN KEY (RuleId) REFERENCES VIB.ops_DataQualityRule (RuleId)
 );
 GO
 
--- ops.RaporTanim
-IF OBJECT_ID(N'ops.RaporTanim', N'U') IS NULL
-CREATE TABLE ops.RaporTanim (
-    RaporKodu       NVARCHAR(50) NOT NULL PRIMARY KEY,
-    Ad              NVARCHAR(200) NOT NULL,
-    KaynakKatman    NVARCHAR(20) NOT NULL,
-    ViewAdi         NVARCHAR(200) NULL,
-    SpAdi           NVARCHAR(200) NULL
+CREATE NONCLUSTERED INDEX IX_ops_DataQualityRuleResult_ExecutionDate
+    ON VIB.ops_DataQualityRuleResult (ExecutionDate DESC, RuleId);
+GO
+
+IF OBJECT_ID(N'VIB.ops_SavedQuery', N'U') IS NULL
+CREATE TABLE VIB.ops_SavedQuery (
+    QueryId             INT             IDENTITY(1,1) NOT NULL,
+    Name                NVARCHAR(200)   NOT NULL,
+    LayerCode           NVARCHAR(20)    NOT NULL,
+    SqlText             NVARCHAR(MAX)   NOT NULL,
+    CreatedByUserId     INT             NULL,
+    CreatedAt           DATETIME2       NOT NULL CONSTRAINT DF_ops_SavedQuery_CreatedAt DEFAULT (SYSUTCDATETIME()),
+    CONSTRAINT PK_ops_SavedQuery PRIMARY KEY (QueryId),
+    CONSTRAINT FK_ops_SavedQuery_CreatedBy FOREIGN KEY (CreatedByUserId) REFERENCES VIB.sec_User (UserId)
 );
 GO
 
--- ops.RaporSonucSnapshot
-IF OBJECT_ID(N'ops.RaporSonucSnapshot', N'U') IS NULL
-CREATE TABLE ops.RaporSonucSnapshot (
-    SnapshotId      INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    RaporKodu       NVARCHAR(50) NOT NULL REFERENCES ops.RaporTanim(RaporKodu),
-    DonemId         INT NULL REFERENCES ops.MutabakatDonem(DonemId),
-    JsonSonuc       NVARCHAR(MAX) NULL,
-    OlusturmaZamani DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+IF OBJECT_ID(N'VIB.ops_ReportDefinition', N'U') IS NULL
+CREATE TABLE VIB.ops_ReportDefinition (
+    ReportCode          NVARCHAR(50)    NOT NULL,
+    Name                NVARCHAR(200)   NOT NULL,
+    SourceLayer         NVARCHAR(20)    NOT NULL,
+    ViewName            NVARCHAR(200)   NULL,
+    StoredProcedureName NVARCHAR(200)   NULL,
+    CONSTRAINT PK_ops_ReportDefinition PRIMARY KEY (ReportCode)
 );
 GO
 
--- audit.AktiviteLog
-IF OBJECT_ID(N'audit.AktiviteLog', N'U') IS NULL
-CREATE TABLE audit.AktiviteLog (
-    LogId           INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    OlayTipi        NVARCHAR(50) NOT NULL,
-    Baslik          NVARCHAR(200) NOT NULL,
-    Detay           NVARCHAR(500) NULL,
-    KullaniciId     INT NULL REFERENCES sec.Kullanici(KullaniciId),
-    OlusturmaZamani DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+IF OBJECT_ID(N'VIB.ops_ReportResultSnapshot', N'U') IS NULL
+CREATE TABLE VIB.ops_ReportResultSnapshot (
+    SnapshotId      INT             IDENTITY(1,1) NOT NULL,
+    ReportCode      NVARCHAR(50)    NOT NULL,
+    PeriodId        INT             NULL,
+    JsonResult      NVARCHAR(MAX)   NULL,
+    CreatedAt       DATETIME2       NOT NULL CONSTRAINT DF_ops_ReportResultSnapshot_CreatedAt DEFAULT (SYSUTCDATETIME()),
+    CONSTRAINT PK_ops_ReportResultSnapshot PRIMARY KEY (SnapshotId),
+    CONSTRAINT FK_ops_ReportResultSnapshot_Report FOREIGN KEY (ReportCode) REFERENCES VIB.ops_ReportDefinition (ReportCode),
+    CONSTRAINT FK_ops_ReportResultSnapshot_Period FOREIGN KEY (PeriodId) REFERENCES VIB.ops_ReconciliationPeriod (PeriodId)
 );
 GO
 
--- audit.SorguCalistirmaLog
-IF OBJECT_ID(N'audit.SorguCalistirmaLog', N'U') IS NULL
-CREATE TABLE audit.SorguCalistirmaLog (
-    LogId           INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    SorguId         INT NULL,
-    KatmanKodu      NVARCHAR(20) NOT NULL,
-    CalistirmaZamani DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-    SatirSayisi     INT NULL,
-    SureMs          INT NULL,
-    Hata            NVARCHAR(MAX) NULL,
-    KullaniciId     INT NULL REFERENCES sec.Kullanici(KullaniciId)
+/* =============================================================================
+   AUDIT  (logical schema: audit)
+   ============================================================================= */
+
+IF OBJECT_ID(N'VIB.audit_ActivityLog', N'U') IS NULL
+CREATE TABLE VIB.audit_ActivityLog (
+    LogId           INT             IDENTITY(1,1) NOT NULL,
+    EventType       NVARCHAR(50)    NOT NULL,
+    Title           NVARCHAR(200)   NOT NULL,
+    Detail          NVARCHAR(500)   NULL,
+    UserId          INT             NULL,
+    CreatedAt       DATETIME2       NOT NULL CONSTRAINT DF_audit_ActivityLog_CreatedAt DEFAULT (SYSUTCDATETIME()),
+    CONSTRAINT PK_audit_ActivityLog PRIMARY KEY (LogId),
+    CONSTRAINT FK_audit_ActivityLog_User FOREIGN KEY (UserId) REFERENCES VIB.sec_User (UserId)
 );
 GO
 
--- Portal views
-IF OBJECT_ID(N'dbo.vw_PortalOzet', N'V') IS NOT NULL DROP VIEW dbo.vw_PortalOzet;
+IF OBJECT_ID(N'VIB.audit_QueryExecutionLog', N'U') IS NULL
+CREATE TABLE VIB.audit_QueryExecutionLog (
+    LogId           INT             IDENTITY(1,1) NOT NULL,
+    QueryId         INT             NULL,
+    LayerCode       NVARCHAR(20)    NOT NULL,
+    ExecutedAt      DATETIME2       NOT NULL CONSTRAINT DF_audit_QueryExecutionLog_ExecutedAt DEFAULT (SYSUTCDATETIME()),
+    RowCount        INT             NULL,
+    DurationMs      INT             NULL,
+    ErrorMessage    NVARCHAR(MAX)   NULL,
+    UserId          INT             NULL,
+    CONSTRAINT PK_audit_QueryExecutionLog PRIMARY KEY (LogId),
+    CONSTRAINT FK_audit_QueryExecutionLog_User FOREIGN KEY (UserId) REFERENCES VIB.sec_User (UserId)
+);
 GO
-CREATE VIEW dbo.vw_PortalOzet AS
+
+/* =============================================================================
+   PORTAL VIEWS
+   ============================================================================= */
+
+IF OBJECT_ID(N'VIB.vw_PortalSummary', N'V') IS NOT NULL
+    DROP VIEW VIB.vw_PortalSummary;
+GO
+
+CREATE VIEW VIB.vw_PortalSummary AS
 SELECT
-    (SELECT COUNT(*) FROM ops.KurumsalHesap WHERE SilindiMi = 0) AS KurumsalHesapSayisi,
-    (SELECT COUNT(*) FROM ops.MutabakatDonem) AS MutabakatDonemSayisi,
-    (SELECT COUNT(*) FROM ops.FarkVerenHesap WHERE SilindiMi = 0 AND Durum IN (N'acik', N'inceleniyor')) AS AcikFarkSayisi,
-    (SELECT COUNT(*) FROM ops.SurecGorevDurum WHERE Durum IN (N'running', N'pending')) AS BekleyenGorevSayisi;
+    (SELECT COUNT(*) FROM VIB.ops_CorporateAccount WHERE IsDeleted = 0) AS CorporateAccountCount,
+    (SELECT COUNT(*) FROM VIB.ops_ReconciliationPeriod) AS ReconciliationPeriodCount,
+    (SELECT COUNT(*) FROM VIB.ops_VarianceAccount WHERE IsDeleted = 0 AND Status IN (N'open', N'in_review')) AS OpenVarianceCount,
+    (SELECT COUNT(*) FROM VIB.ops_ProcessTaskStatus WHERE Status IN (N'running', N'pending')) AS PendingTaskCount;
 GO
 
-IF OBJECT_ID(N'dbo.vw_EkipMutabakatIlerleme', N'V') IS NOT NULL DROP VIEW dbo.vw_EkipMutabakatIlerleme;
-GO
-CREATE VIEW dbo.vw_EkipMutabakatIlerleme AS
-SELECT
-    e.EkipId,
-    e.Ad AS EkipAdi,
-    COUNT(f.FarkId) AS ToplamFark,
-    SUM(CASE WHEN f.Durum = N'kapatildi' THEN 1 ELSE 0 END) AS KapatilanFark,
-    CASE WHEN COUNT(f.FarkId) = 0 THEN 100
-         ELSE CAST(SUM(CASE WHEN f.Durum = N'kapatildi' THEN 1 ELSE 0 END) * 100.0 / COUNT(f.FarkId) AS INT)
-    END AS IlerlemeYuzde
-FROM ref.Ekip e
-LEFT JOIN ops.FarkVerenHesap f ON f.EkipId = e.EkipId AND f.SilindiMi = 0
-WHERE e.Aktif = 1 AND e.SilindiMi = 0
-GROUP BY e.EkipId, e.Ad;
+IF OBJECT_ID(N'VIB.vw_TeamReconciliationProgress', N'V') IS NOT NULL
+    DROP VIEW VIB.vw_TeamReconciliationProgress;
 GO
 
-IF OBJECT_ID(N'dbo.vw_EkipIsYuku', N'V') IS NOT NULL DROP VIEW dbo.vw_EkipIsYuku;
-GO
-CREATE VIEW dbo.vw_EkipIsYuku AS
+CREATE VIEW VIB.vw_TeamReconciliationProgress AS
 SELECT
-    e.EkipId,
-    e.Ad AS EkipAdi,
-    SUM(CASE WHEN f.Durum IN (N'acik', N'inceleniyor') THEN 1 ELSE 0 END) AS AcikFarkSayisi,
-    SUM(CASE WHEN f.Durum = N'acik' THEN 1 ELSE 0 END) AS BekleyenAksiyonSayisi
-FROM ref.Ekip e
-LEFT JOIN ops.FarkVerenHesap f ON f.EkipId = e.EkipId AND f.SilindiMi = 0
-WHERE e.Aktif = 1 AND e.SilindiMi = 0
-GROUP BY e.EkipId, e.Ad;
+    t.TeamId,
+    t.Name AS TeamName,
+    COUNT(v.VarianceId) AS TotalVarianceCount,
+    SUM(CASE WHEN v.Status = N'closed' THEN 1 ELSE 0 END) AS ClosedVarianceCount,
+    CASE
+        WHEN COUNT(v.VarianceId) = 0 THEN 100
+        ELSE CAST(SUM(CASE WHEN v.Status = N'closed' THEN 1 ELSE 0 END) * 100.0 / COUNT(v.VarianceId) AS INT)
+    END AS ProgressPercent
+FROM VIB.ref_Team t
+LEFT JOIN VIB.ops_VarianceAccount v ON v.TeamId = t.TeamId AND v.IsDeleted = 0
+WHERE t.IsActive = 1 AND t.IsDeleted = 0
+GROUP BY t.TeamId, t.Name;
+GO
+
+IF OBJECT_ID(N'VIB.vw_TeamWorkload', N'V') IS NOT NULL
+    DROP VIEW VIB.vw_TeamWorkload;
+GO
+
+CREATE VIEW VIB.vw_TeamWorkload AS
+SELECT
+    t.TeamId,
+    t.Name AS TeamName,
+    SUM(CASE WHEN v.Status IN (N'open', N'in_review') THEN 1 ELSE 0 END) AS OpenVarianceCount,
+    SUM(CASE WHEN v.Status = N'open' THEN 1 ELSE 0 END) AS PendingActionCount
+FROM VIB.ref_Team t
+LEFT JOIN VIB.ops_VarianceAccount v ON v.TeamId = t.TeamId AND v.IsDeleted = 0
+WHERE t.IsActive = 1 AND t.IsDeleted = 0
+GROUP BY t.TeamId, t.Name;
 GO

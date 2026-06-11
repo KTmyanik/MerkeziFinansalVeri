@@ -121,11 +121,21 @@
         // Veri Kaynakları
         getVeriKaynaklari() { return request('/veri-kaynaklari'); },
         updateVeriKaynagi(id, data) { return request(`/veri-kaynaklari/${id}`, { method: 'PUT', body: data }); },
-        testVeriKaynagi(id) { return request(`/veri-kaynaklari/${id}/test`, { method: 'POST' }); },
+        testVeriKaynagi(id, connectionParams) {
+            return request(`/veri-kaynaklari/${id}/test`, {
+                method: 'POST',
+                body: connectionParams || null
+            });
+        },
 
         // Veritabanı Sorgusu
-        calistirVeritabaniSorgu(data) { return request('/veritabani-sorgu/calistir', { method: 'POST', body: data }); },
-        testVeritabaniSorguKatman(katmanKodu) { return request(`/veritabani-sorgu/test/${encodeURIComponent(katmanKodu)}`, { method: 'POST' }); }
+        getVeritabaniSorguAyarlar() { return request('/veritabani-sorgu/ayarlar'); },
+        calistirVeritabaniSorgu(data) {
+            return request('/veritabani-sorgu/calistir', { method: 'POST', body: data });
+        },
+        testVeritabaniSorguKatman(katmanKodu) {
+            return request(`/veritabani-sorgu/test/${encodeURIComponent(katmanKodu)}`, { method: 'POST' });
+        }
     };
 
     window.ApiClient = api;

@@ -33,6 +33,7 @@
     function statusLabel(status) {
         if (status === 'connected') return 'Bağlı';
         if (status === 'error') return 'Hata';
+        if (status === 'unknown') return 'Yapılandırılmadı';
         return 'Yapılandırılmadı';
     }
 
@@ -51,10 +52,13 @@
 
     function buildPageHTML(selectedId) {
         const kaynak = getKaynak(selectedId);
-        if (!kaynak) return '<p>Veri kaynağı bulunamadı.</p>';
+        if (!kaynak) {
+            return `<div class="dbc-layout"><p>API bağlantısı kurulamadı. Sunucunun çalıştığından emin olun.</p></div>`;
+        }
 
         const tema = KATMAN_TEMA[kaynak.katmanKodu] || 'main';
         const rol = KATMAN_ROL[kaynak.katmanKodu] || kaynak.katmanKodu;
+        const showSqlUser = kaynak.kimlikDogrulama === 'sql';
 
         return `<div class="dbc-layout">
             <article class="dbc-panel theme-${tema}" data-dbc-panel>
@@ -73,16 +77,16 @@
                     </div>
                     <div class="dbc-field">
                         <label for="dbc-server">Sunucu</label>
-                        <input type="text" id="dbc-server" data-field="server" value="${kaynak.sunucu}" placeholder="sql-server.sirket.local">
+                        <input type="text" id="dbc-server" data-field="server" value="${escapeHtml(kaynak.sunucu)}" placeholder="10.13.8.238 veya sql-server.sirket.local">
                     </div>
                     <div class="dbc-row">
                         <div class="dbc-field">
                             <label for="dbc-database">Veritabanı</label>
-                            <input type="text" id="dbc-database" data-field="database" value="${kaynak.veritabani}">
+                            <input type="text" id="dbc-database" data-field="database" value="${escapeHtml(kaynak.veritabani)}">
                         </div>
                         <div class="dbc-field">
                             <label for="dbc-port">Port</label>
-                            <input type="text" id="dbc-port" data-field="port" value="${kaynak.port}">
+                            <input type="text" id="dbc-port" data-field="port" value="${kaynak.port || 1433}">
                         </div>
                     </div>
                     <div class="dbc-field">
@@ -92,17 +96,30 @@
                             <option value="windows" ${kaynak.kimlikDogrulama === 'windows' ? 'selected' : ''}>Windows (Entegre)</option>
                         </select>
                     </div>
+                    <div class="dbc-field" data-sql-user-wrap style="${showSqlUser ? '' : 'display:none'}">
+                        <label for="dbc-sql-user">SQL Kullanıcı Adı</label>
+                        <input type="text" id="dbc-sql-user" data-field="sqlUser" value="${escapeHtml(kaynak.kullaniciAdi || '')}" placeholder="sa veya uygulama kullanıcısı">
+                    </div>
+                    <p class="dbc-test-msg" data-test-msg role="status" hidden></p>
                     <div class="dbc-actions">
                         <button type="button" class="dbc-test-btn" data-test>Bağlantıyı Test Et</button>
                         <button type="button" class="dbc-save-btn" data-save>Kaydet</button>
                     </div>
                 </div>
             </article>
-            <p class="dbc-hint">Bağlantı bilgileri sunucu tarafında (cfg.VeriKaynagi) saklanır. Şifreler maskelenmiş olarak tutulur.</p>
+            <p class="dbc-hint">Bağlantı bilgileri sunucu tarafında (cfg.VeriKaynagi) saklanır. appsettings.json içindeki TdConnections değerleri ilk yüklemede varsayılan olarak uygulanır.</p>
             <div class="dbc-footer">
                 <span class="dbc-footer-msg" id="dbcSaveMsg" role="status">Kaydedildi</span>
             </div>
         </div>`;
+    }
+
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
     }
 
     function readFormFields(scope) {
@@ -113,6 +130,7 @@
             else if (key === 'server') data.sunucu = el.value.trim();
             else if (key === 'port') data.port = parseInt(el.value.trim(), 10) || 1433;
             else if (key === 'auth') data.kimlikDogrulama = el.value.trim();
+            else if (key === 'sqlUser') data.kullaniciAdi = el.value.trim() || null;
         });
         return data;
     }
@@ -124,6 +142,21 @@
         badge.textContent = statusLabel(status);
     }
 
+    function showTestMsg(scope, message, isError) {
+        const el = scope.querySelector('[data-test-msg]');
+        if (!el) return;
+        el.hidden = !message;
+        el.textContent = message || '';
+        el.classList.toggle('error', !!isError);
+        el.classList.toggle('success', !!message && !isError);
+    }
+
+    function toggleSqlUserField(scope) {
+        const auth = scope.querySelector('[data-field="auth"]')?.value;
+        const wrap = scope.querySelector('[data-sql-user-wrap]');
+        if (wrap) wrap.style.display = auth === 'sql' ? '' : 'none';
+    }
+
     function bindEvents(root) {
         const scope = root || document;
         let currentId = parseInt(scope.querySelector('[data-db-select]')?.value, 10) || currentKaynakId;
@@ -132,43 +165,69 @@
             currentId = parseInt(e.target.value, 10);
             currentKaynakId = currentId;
             const kaynak = getKaynak(currentId);
-            scope.querySelector('[data-field="server"]').value = kaynak.sunucu;
-            scope.querySelector('[data-field="database"]').value = kaynak.veritabani;
-            scope.querySelector('[data-field="port"]').value = kaynak.port;
-            scope.querySelector('[data-field="auth"]').value = kaynak.kimlikDogrulama;
+            scope.querySelector('[data-field="server"]').value = kaynak.sunucu || '';
+            scope.querySelector('[data-field="database"]').value = kaynak.veritabani || '';
+            scope.querySelector('[data-field="port"]').value = kaynak.port || 1433;
+            scope.querySelector('[data-field="auth"]').value = kaynak.kimlikDogrulama || 'windows';
+            const sqlUser = scope.querySelector('[data-field="sqlUser"]');
+            if (sqlUser) sqlUser.value = kaynak.kullaniciAdi || '';
             updateStatus(scope, kaynak.durum);
+            toggleSqlUserField(scope);
+            showTestMsg(scope, '', false);
             const panel = scope.querySelector('[data-dbc-panel]');
             if (panel) panel.className = `dbc-panel theme-${KATMAN_TEMA[kaynak.katmanKodu] || 'main'}`;
             const roleEl = scope.querySelector('[data-db-role]');
             if (roleEl) roleEl.textContent = KATMAN_ROL[kaynak.katmanKodu] || kaynak.katmanKodu;
         });
 
+        scope.querySelector('[data-field="auth"]')?.addEventListener('change', () => {
+            toggleSqlUserField(scope);
+        });
+
         scope.querySelector('[data-test]')?.addEventListener('click', async (btn) => {
             const button = btn.currentTarget;
+            const formData = readFormFields(scope);
+            if (!formData.sunucu || !formData.veritabani) {
+                showTestMsg(scope, 'Sunucu ve veritabanı alanları zorunludur.', true);
+                return;
+            }
+
             button.disabled = true;
             button.textContent = 'Test ediliyor…';
+            showTestMsg(scope, '', false);
+
             try {
-                const result = await ApiClient.testVeriKaynagi(currentId);
+                const result = await ApiClient.testVeriKaynagi(currentId, formData);
                 const status = result.basarili ? 'connected' : 'error';
                 updateStatus(scope, status);
+                showTestMsg(scope, result.mesaj || (result.basarili ? 'Bağlantı başarılı.' : 'Bağlantı başarısız.'), !result.basarili);
+
                 const idx = veriKaynaklari.findIndex(v => v.kaynakId === currentId);
                 if (idx >= 0) veriKaynaklari[idx].durum = status;
                 scope.querySelector('[data-db-select]').innerHTML = buildDbOptions(currentId);
             } catch (err) {
                 updateStatus(scope, 'error');
+                showTestMsg(scope, 'Test isteği başarısız: ' + err.message, true);
                 console.error('Bağlantı testi başarısız:', err);
             }
+
             button.disabled = false;
             button.textContent = 'Bağlantıyı Test Et';
         });
 
         scope.querySelector('[data-save]')?.addEventListener('click', async () => {
+            const formData = readFormFields(scope);
+            if (!formData.sunucu || !formData.veritabani) {
+                showTestMsg(scope, 'Kaydetmeden önce sunucu ve veritabanı girin.', true);
+                return;
+            }
+
             try {
-                const data = readFormFields(scope);
-                const updated = await ApiClient.updateVeriKaynagi(currentId, data);
+                const updated = await ApiClient.updateVeriKaynagi(currentId, formData);
                 const idx = veriKaynaklari.findIndex(v => v.kaynakId === currentId);
                 if (idx >= 0) veriKaynaklari[idx] = { ...veriKaynaklari[idx], ...updated };
                 showSaveMsg(scope);
+                showTestMsg(scope, 'Ayarlar kaydedildi. Bağlantıyı test edebilirsiniz.', false);
             } catch (err) {
                 alert('Kaydetme başarısız: ' + err.message);
             }

@@ -1,42 +1,42 @@
-USE [MGTV_Uygulama];
+USE [TDUTIL];
 GO
 
--- ops.MutabakatDonem (PERIODS)
-MERGE ops.MutabakatDonem AS tgt
+-- VIB.ops_ReconciliationPeriod (PERIODS)
+MERGE VIB.ops_ReconciliationPeriod AS tgt
 USING (VALUES
     (N'2026-06', N'Haziran 2026', N'aktif',  248, 12, NULL,           1),
     (N'2026-05', N'Mayıs 2026',   N'kapali', 246,  0, N'2026-06-03',  0),
     (N'2026-04', N'Nisan 2026',   N'kapali', 244,  0, N'2026-05-04',  0),
     (N'2026-03', N'Mart 2026',    N'onay',   241,  3, NULL,           0)
-) AS src(YilAy, Etiket, Durum, HesapSayisi, FarkVerenSayisi, KapanisTarihi, AktifMi)
-ON tgt.YilAy = src.YilAy
+) AS src(YearMonth, Label, Status, AccountCount, VarianceCount, ClosedDate, IsActive)
+ON tgt.YearMonth = src.YearMonth
 WHEN MATCHED THEN
     UPDATE SET
-        Etiket = src.Etiket,
-        Durum = src.Durum,
-        HesapSayisi = src.HesapSayisi,
-        FarkVerenSayisi = src.FarkVerenSayisi,
-        KapanisTarihi = src.KapanisTarihi,
-        AktifMi = src.AktifMi,
-        GuncellemeZamani = SYSUTCDATETIME()
+        Label = src.Label,
+        Status = src.Status,
+        AccountCount = src.AccountCount,
+        VarianceCount = src.VarianceCount,
+        ClosedDate = src.ClosedDate,
+        IsActive = src.IsActive,
+        UpdatedAt = SYSUTCDATETIME()
 WHEN NOT MATCHED BY TARGET THEN
-    INSERT (YilAy, Etiket, Durum, HesapSayisi, FarkVerenSayisi, KapanisTarihi, AktifMi)
-    VALUES (src.YilAy, src.Etiket, src.Durum, src.HesapSayisi, src.FarkVerenSayisi, src.KapanisTarihi, src.AktifMi);
+    INSERT (YearMonth, Label, Status, AccountCount, VarianceCount, ClosedDate, IsActive)
+    VALUES (src.YearMonth, src.Label, src.Status, src.AccountCount, src.VarianceCount, src.ClosedDate, src.IsActive);
 GO
 
--- ops.KurumsalHesap (kebir-hesaplari.html — 10 rows)
-MERGE ops.KurumsalHesap AS tgt
+-- VIB.ops_CorporateAccount (kebir-hesaplari.html — 10 rows)
+MERGE VIB.ops_CorporateAccount AS tgt
 USING (
     SELECT
-        v.HesapId,
-        v.HesapAdi,
-        e.EkipId,
-        v.BeklenenAksiyon,
-        v.Kaynak,
-        v.KayitTarihi,
-        v.GuncellemeTarihi,
-        ok.KullaniciId AS OlusturanKullaniciId,
-        gk.KullaniciId AS GuncelleyenKullaniciId
+        v.AccountId,
+        v.AccountName,
+        e.TeamId,
+        v.ExpectedAction,
+        v.Source,
+        v.RecordDate,
+        v.UpdatedAt,
+        ok.UserId AS CreatedByUserId,
+        gk.UserId AS UpdatedByUserId
     FROM (VALUES
         (1,  N'Kurumsal Hesap 1',  N'Banka Ekip 1',    N'Ödeme İşlemi',      N'Banka Sistemi',   N'2024-01-15', N'2024-01-20', N'Ahmet Yılmaz', N'Mehmet Kara'),
         (2,  N'Kurumsal Hesap 2',  N'Banka Ekip 2',    N'Hesap Aktarımı',    N'Merkezi Sistem',  N'2024-01-18', N'2024-01-21', N'Ayşe Demir',   N'Zeynep Can'),
@@ -48,38 +48,38 @@ USING (
         (8,  N'Kurumsal Hesap 8',  N'Banka Ekip 2',    N'Hesap Aktarımı',    N'Merkezi Sistem',  N'2024-01-27', N'2024-01-28', N'Zeynep Can',   N'Ayşe Demir'),
         (9,  N'Kurumsal Hesap 9',  N'Banka Ekip 1',    N'Kaydı Güncelle',    N'Banka Sistemi',   N'2024-01-28', N'2024-01-29', N'Fatih Şahin',  N'Seda Yıldız'),
         (10, N'Kurumsal Hesap 10', N'Banka Ekip 3',    N'Doğrulama Bekle',   N'Merkezi Sistem',  N'2024-01-29', N'2024-01-30', N'Mehmet Kara',  N'Ahmet Yılmaz')
-    ) AS v(HesapId, HesapAdi, EkipAd, BeklenenAksiyon, Kaynak, KayitTarihi, GuncellemeTarihi, OlusturanAd, GuncelleyenAd)
-    INNER JOIN ref.Ekip e ON e.Ad = v.EkipAd AND e.SilindiMi = 0
-    LEFT JOIN sec.Kullanici ok ON ok.Ad = v.OlusturanAd AND ok.SilindiMi = 0
-    LEFT JOIN sec.Kullanici gk ON gk.Ad = v.GuncelleyenAd AND gk.SilindiMi = 0
+    ) AS v(AccountId, AccountName, TeamName, ExpectedAction, Source, RecordDate, UpdatedAt, CreatedByName, UpdatedByName)
+    INNER JOIN VIB.ref_Team e ON e.Name = v.TeamName AND e.IsDeleted = 0
+    LEFT JOIN VIB.sec_User ok ON ok.Name = v.CreatedByName AND ok.IsDeleted = 0
+    LEFT JOIN VIB.sec_User gk ON gk.Name = v.UpdatedByName AND gk.IsDeleted = 0
 ) AS src
-ON tgt.HesapId = src.HesapId AND tgt.SilindiMi = 0
+ON tgt.AccountId = src.AccountId AND tgt.IsDeleted = 0
 WHEN MATCHED THEN
     UPDATE SET
-        HesapAdi = src.HesapAdi,
-        EkipId = src.EkipId,
-        BeklenenAksiyon = src.BeklenenAksiyon,
-        Kaynak = src.Kaynak,
-        KayitTarihi = src.KayitTarihi,
-        GuncellemeTarihi = src.GuncellemeTarihi,
-        OlusturanKullaniciId = src.OlusturanKullaniciId,
-        GuncelleyenKullaniciId = src.GuncelleyenKullaniciId
+        AccountName = src.AccountName,
+        TeamId = src.TeamId,
+        ExpectedAction = src.ExpectedAction,
+        Source = src.Source,
+        RecordDate = src.RecordDate,
+        UpdatedAt = src.UpdatedAt,
+        CreatedByUserId = src.CreatedByUserId,
+        UpdatedByUserId = src.UpdatedByUserId
 WHEN NOT MATCHED BY TARGET THEN
-    INSERT (HesapId, HesapAdi, EkipId, BeklenenAksiyon, Kaynak, KayitTarihi, GuncellemeTarihi, OlusturanKullaniciId, GuncelleyenKullaniciId)
-    VALUES (src.HesapId, src.HesapAdi, src.EkipId, src.BeklenenAksiyon, src.Kaynak, src.KayitTarihi, src.GuncellemeTarihi, src.OlusturanKullaniciId, src.GuncelleyenKullaniciId);
+    INSERT (AccountId, AccountName, TeamId, ExpectedAction, Source, RecordDate, UpdatedAt, CreatedByUserId, UpdatedByUserId)
+    VALUES (src.AccountId, src.AccountName, src.TeamId, src.ExpectedAction, src.Source, src.RecordDate, src.UpdatedAt, src.CreatedByUserId, src.UpdatedByUserId);
 GO
 
--- ops.FarkVerenHesap (DIFF_ACCOUNTS — aktif dönem 2026-06)
-MERGE ops.FarkVerenHesap AS tgt
+-- VIB.ops_VarianceAccount (DIFF_ACCOUNTS — aktif dönem 2026-06)
+MERGE VIB.ops_VarianceAccount AS tgt
 USING (
     SELECT
-        d.DonemId,
-        v.HesapKodu,
-        v.HesapAdi,
-        e.EkipId,
-        v.MizanBakiye,
-        v.KartonBakiye,
-        v.Durum
+        d.PeriodId,
+        v.AccountCode,
+        v.AccountName,
+        e.TeamId,
+        v.TrialBalanceAmount,
+        v.CardTableAmount,
+        v.Status
     FROM (VALUES
         (N'100.01.001', N'Merkez Kasa',                    N'Banka Ekip 1',    1500000.00,  1485000.00,  N'acik'),
         (N'120.05.042', N'Ticari Alacaklar — X A.Ş.',      N'Banka Ekip 2',    2847500.00,  2851000.00,  N'inceleniyor'),
@@ -89,28 +89,27 @@ USING (
         (N'391.01.002', N'Hesaplanan KDV',                 N'Banka Ekip 2',     567800.00,   562300.00,  N'inceleniyor'),
         (N'770.04.011', N'Genel Yönetim Giderleri',        N'Banka Ekip 3',     890000.00,   901200.00,  N'acik'),
         (N'257.01.001', N'Birikmiş Amortisman',            N'Merkezi Kontrol',  3200000.00,  3198500.00,  N'kapatildi')
-    ) AS v(HesapKodu, HesapAdi, EkipAd, MizanBakiye, KartonBakiye, Durum)
-    INNER JOIN ops.MutabakatDonem d ON d.YilAy = N'2026-06'
-    INNER JOIN ref.Ekip e ON e.Ad = v.EkipAd AND e.SilindiMi = 0
+    ) AS v(AccountCode, AccountName, TeamName, TrialBalanceAmount, CardTableAmount, Status)
+    INNER JOIN VIB.ops_ReconciliationPeriod d ON d.YearMonth = N'2026-06'
+    INNER JOIN VIB.ref_Team e ON e.Name = v.TeamName AND e.IsDeleted = 0
 ) AS src
-ON tgt.DonemId = src.DonemId AND tgt.HesapKodu = src.HesapKodu AND tgt.SilindiMi = 0
+ON tgt.PeriodId = src.PeriodId AND tgt.AccountCode = src.AccountCode AND tgt.IsDeleted = 0
 WHEN MATCHED THEN
     UPDATE SET
-        HesapAdi = src.HesapAdi,
-        EkipId = src.EkipId,
-        MizanBakiye = src.MizanBakiye,
-        KartonBakiye = src.KartonBakiye,
-        Durum = src.Durum,
-        GuncellemeZamani = SYSUTCDATETIME()
+        AccountName = src.AccountName,
+        TeamId = src.TeamId,
+        TrialBalanceAmount = src.TrialBalanceAmount,
+        CardTableAmount = src.CardTableAmount,
+        Status = src.Status,
+        UpdatedAt = SYSUTCDATETIME()
 WHEN NOT MATCHED BY TARGET THEN
-    INSERT (DonemId, HesapKodu, HesapAdi, EkipId, MizanBakiye, KartonBakiye, Durum)
-    VALUES (src.DonemId, src.HesapKodu, src.HesapAdi, src.EkipId, src.MizanBakiye, src.KartonBakiye, src.Durum);
+    INSERT (PeriodId, AccountCode, AccountName, TeamId, TrialBalanceAmount, CardTableAmount, Status)
+    VALUES (src.PeriodId, src.AccountCode, src.AccountName, src.TeamId, src.TrialBalanceAmount, src.CardTableAmount, src.Status);
 GO
 
--- ops.SurecDataset (COCKPIT_COLUMNS + DATASET_DOMAINS)
-MERGE ops.SurecDataset AS tgt
+-- VIB.ops_ProcessDataset (COCKPIT_COLUMNS + DATASET_DOMAINS)
+MERGE VIB.ops_ProcessDataset AS tgt
 USING (VALUES
-    -- COCKPIT_COLUMNS — katman bazlı
     (N'ds_banka_ham',       N'Banka Ham Veri',      N'TDSTG',   NULL,               1),
     (N'ds_muhasebe_raw',    N'Muhasebe Raw',        N'TDSTG',   NULL,               2),
     (N'ds_doviz_kurlari',   N'Döviz Kurları',       N'TDSTG',   NULL,               3),
@@ -123,7 +122,6 @@ USING (VALUES
     (N'ds_gelir',           N'Gelir Tablosu',       N'TDREPORT', NULL,             10),
     (N'ds_ters_bakiye',     N'Ters Bakiye',         N'TDREPORT', NULL,             11),
     (N'ds_nazim',           N'Nazım Hesapları',     N'TDREPORT', NULL,             12),
-    -- DATASET_DOMAINS — domain bazlı
     (N'ds_fon_hareket',      N'Fon Hareket',         NULL,       N'fon-kullandirim', 13),
     (N'ds_fon_limit',        N'Fon Limit',           NULL,       N'fon-kullandirim', 14),
     (N'ds_fon_faiz',         N'Fon Faiz',            NULL,       N'fon-kullandirim', 15),
@@ -145,23 +143,23 @@ USING (VALUES
     (N'ds_reeskont_portfoy', N'Reeskont Portföy',    NULL,       N'reeskont',        31),
     (N'ds_reeskont_faiz',    N'Reeskont Faiz',       NULL,       N'reeskont',        32),
     (N'ds_reeskont_vade',    N'Reeskont Vade',       NULL,       N'reeskont',        33)
-) AS src(Kod, Etiket, KatmanKodu, DomainId, Sira)
-ON tgt.Kod = src.Kod
+) AS src(Code, Label, LayerCode, DomainId, SortOrder)
+ON tgt.Code = src.Code
 WHEN MATCHED THEN
     UPDATE SET
-        Etiket = src.Etiket,
-        KatmanKodu = src.KatmanKodu,
+        Label = src.Label,
+        LayerCode = src.LayerCode,
         DomainId = src.DomainId,
-        Sira = src.Sira
+        SortOrder = src.SortOrder
 WHEN NOT MATCHED BY TARGET THEN
-    INSERT (Kod, Etiket, KatmanKodu, DomainId, Sira)
-    VALUES (src.Kod, src.Etiket, src.KatmanKodu, src.DomainId, src.Sira);
+    INSERT (Code, Label, LayerCode, DomainId, SortOrder)
+    VALUES (src.Code, src.Label, src.LayerCode, src.DomainId, src.SortOrder);
 GO
 
--- ops.SurecGorevTanim (COCKPIT_COLUMNS tasks)
-MERGE ops.SurecGorevTanim AS tgt
+-- VIB.ops_ProcessTaskDefinition (COCKPIT_COLUMNS tasks)
+MERGE VIB.ops_ProcessTaskDefinition AS tgt
 USING (
-    SELECT ds.DatasetId, v.Etiket, v.Sira
+    SELECT ds.DatasetId, v.Label, v.SortOrder
     FROM (VALUES
         (N'ds_banka_ham',     N'Yükleme',       1),
         (N'ds_banka_ham',     N'Validasyon',    2),
@@ -199,24 +197,24 @@ USING (
         (N'ds_nazim',         N'Agregasyon',    1),
         (N'ds_nazim',         N'Rapor Üretim',  2),
         (N'ds_nazim',         N'Yayınlama',     3)
-    ) AS v(DatasetKod, Etiket, Sira)
-    INNER JOIN ops.SurecDataset ds ON ds.Kod = v.DatasetKod
+    ) AS v(DatasetCode, Label, SortOrder)
+    INNER JOIN VIB.ops_ProcessDataset ds ON ds.Code = v.DatasetCode
 ) AS src
-ON tgt.DatasetId = src.DatasetId AND tgt.Etiket = src.Etiket
+ON tgt.DatasetId = src.DatasetId AND tgt.Label = src.Label
 WHEN MATCHED THEN
-    UPDATE SET Sira = src.Sira
+    UPDATE SET SortOrder = src.SortOrder
 WHEN NOT MATCHED BY TARGET THEN
-    INSERT (DatasetId, Etiket, Sira)
-    VALUES (src.DatasetId, src.Etiket, src.Sira);
+    INSERT (DatasetId, Label, SortOrder)
+    VALUES (src.DatasetId, src.Label, src.SortOrder);
 GO
 
--- ops.SurecGorevDurum (COCKPIT_COLUMNS task statuses — aktif dönem)
-MERGE ops.SurecGorevDurum AS tgt
+-- VIB.ops_ProcessTaskStatus (COCKPIT_COLUMNS task statuses — aktif dönem)
+MERGE VIB.ops_ProcessTaskStatus AS tgt
 USING (
     SELECT
-        gt.GorevTanimId,
-        d.DonemId,
-        v.Durum
+        gt.TaskDefinitionId,
+        d.PeriodId,
+        v.Status
     FROM (VALUES
         (N'ds_banka_ham',     N'Yükleme',       N'done'),
         (N'ds_banka_ham',     N'Validasyon',    N'done'),
@@ -254,21 +252,21 @@ USING (
         (N'ds_nazim',         N'Agregasyon',    N'pending'),
         (N'ds_nazim',         N'Rapor Üretim',  N'pending'),
         (N'ds_nazim',         N'Yayınlama',     N'pending')
-    ) AS v(DatasetKod, GorevEtiket, Durum)
-    INNER JOIN ops.SurecDataset ds ON ds.Kod = v.DatasetKod
-    INNER JOIN ops.SurecGorevTanim gt ON gt.DatasetId = ds.DatasetId AND gt.Etiket = v.GorevEtiket
-    INNER JOIN ops.MutabakatDonem d ON d.YilAy = N'2026-06'
+    ) AS v(DatasetCode, TaskLabel, Status)
+    INNER JOIN VIB.ops_ProcessDataset ds ON ds.Code = v.DatasetCode
+    INNER JOIN VIB.ops_ProcessTaskDefinition gt ON gt.DatasetId = ds.DatasetId AND gt.Label = v.TaskLabel
+    INNER JOIN VIB.ops_ReconciliationPeriod d ON d.YearMonth = N'2026-06'
 ) AS src
-ON tgt.GorevTanimId = src.GorevTanimId AND ISNULL(tgt.DonemId, -1) = ISNULL(src.DonemId, -1)
+ON tgt.TaskDefinitionId = src.TaskDefinitionId AND ISNULL(tgt.PeriodId, -1) = ISNULL(src.PeriodId, -1)
 WHEN MATCHED THEN
-    UPDATE SET Durum = src.Durum, SonGuncelleme = SYSUTCDATETIME()
+    UPDATE SET Status = src.Status, LastUpdatedAt = SYSUTCDATETIME()
 WHEN NOT MATCHED BY TARGET THEN
-    INSERT (GorevTanimId, DonemId, Durum)
-    VALUES (src.GorevTanimId, src.DonemId, src.Durum);
+    INSERT (TaskDefinitionId, PeriodId, Status)
+    VALUES (src.TaskDefinitionId, src.PeriodId, src.Status);
 GO
 
--- ops.VeriKalitesiKural (RULES)
-MERGE ops.VeriKalitesiKural AS tgt
+-- VIB.ops_DataQualityRule (RULES)
+MERGE VIB.ops_DataQualityRule AS tgt
 USING (VALUES
     (N'DQ-001', N'Bakiye işareti kontrolü',       N'Mutabakat', N'Kritik', N'Aktif'),
     (N'DQ-002', N'Hesap kodu formatı',             N'Parametre', N'Yüksek', N'Aktif'),
@@ -276,17 +274,17 @@ USING (VALUES
     (N'DQ-004', N'Tarih aralığı tutarlılığı',      N'Süreç',     N'Yüksek', N'Aktif'),
     (N'DQ-005', N'Duplicate kayıt tespiti',        N'Mevduat',   N'Kritik', N'Pasif'),
     (N'DQ-006', N'Referans tablo eşleşmesi',       N'Masraf',    N'Orta',   N'Aktif')
-) AS src(KuralId, Ad, Alan, Onem, Durum)
-ON tgt.KuralId = src.KuralId
+) AS src(RuleId, Name, Domain, Severity, Status)
+ON tgt.RuleId = src.RuleId
 WHEN MATCHED THEN
-    UPDATE SET Ad = src.Ad, Alan = src.Alan, Onem = src.Onem, Durum = src.Durum, GuncellemeZamani = SYSUTCDATETIME()
+    UPDATE SET Name = src.Name, Domain = src.Domain, Severity = src.Severity, Status = src.Status, UpdatedAt = SYSUTCDATETIME()
 WHEN NOT MATCHED BY TARGET THEN
-    INSERT (KuralId, Ad, Alan, Onem, Durum)
-    VALUES (src.KuralId, src.Ad, src.Alan, src.Onem, src.Durum);
+    INSERT (RuleId, Name, Domain, Severity, Status)
+    VALUES (src.RuleId, src.Name, src.Domain, src.Severity, src.Status);
 GO
 
--- ops.VeriKalitesiKuralSonuc (DAILY_RESULTS)
-MERGE ops.VeriKalitesiKuralSonuc AS tgt
+-- VIB.ops_DataQualityRuleResult (DAILY_RESULTS)
+MERGE VIB.ops_DataQualityRuleResult AS tgt
 USING (VALUES
     (CAST(N'2026-06-07' AS DATE), N'DQ-001', 248, 3, N'warn'),
     (CAST(N'2026-06-07' AS DATE), N'DQ-002', 512, 0, N'ok'),
@@ -294,25 +292,25 @@ USING (VALUES
     (CAST(N'2026-06-07' AS DATE), N'DQ-004', 156, 1, N'warn'),
     (CAST(N'2026-06-06' AS DATE), N'DQ-001', 247, 4, N'warn'),
     (CAST(N'2026-06-06' AS DATE), N'DQ-006', 320, 0, N'ok')
-) AS src(CalistirmaTarihi, KuralId, GecenSayi, HataliSayi, Sonuc)
-ON tgt.CalistirmaTarihi = src.CalistirmaTarihi AND tgt.KuralId = src.KuralId
+) AS src(ExecutionDate, RuleId, PassedCount, FailedCount, Result)
+ON tgt.ExecutionDate = src.ExecutionDate AND tgt.RuleId = src.RuleId
 WHEN MATCHED THEN
-    UPDATE SET GecenSayi = src.GecenSayi, HataliSayi = src.HataliSayi, Sonuc = src.Sonuc
+    UPDATE SET PassedCount = src.PassedCount, FailedCount = src.FailedCount, Result = src.Result
 WHEN NOT MATCHED BY TARGET THEN
-    INSERT (CalistirmaTarihi, KuralId, GecenSayi, HataliSayi, Sonuc)
-    VALUES (src.CalistirmaTarihi, src.KuralId, src.GecenSayi, src.HataliSayi, src.Sonuc);
+    INSERT (ExecutionDate, RuleId, PassedCount, FailedCount, Result)
+    VALUES (src.ExecutionDate, src.RuleId, src.PassedCount, src.FailedCount, src.Result);
 GO
 
--- ops.RaporTanim (placeholder raporlar)
-MERGE ops.RaporTanim AS tgt
+-- VIB.ops_ReportDefinition (placeholder raporlar)
+MERGE VIB.ops_ReportDefinition AS tgt
 USING (VALUES
     (N'ters-bakiye', N'Ters Bakiye Raporu',       N'TDREPORT', N'vw_TersBakiye',    NULL),
     (N'nazim',       N'Nazım Hesapları Raporu',   N'TDREPORT', N'vw_NazimHesaplari', NULL)
-) AS src(RaporKodu, Ad, KaynakKatman, ViewAdi, SpAdi)
-ON tgt.RaporKodu = src.RaporKodu
+) AS src(ReportCode, Name, SourceLayer, ViewName, StoredProcedureName)
+ON tgt.ReportCode = src.ReportCode
 WHEN MATCHED THEN
-    UPDATE SET Ad = src.Ad, KaynakKatman = src.KaynakKatman, ViewAdi = src.ViewAdi, SpAdi = src.SpAdi
+    UPDATE SET Name = src.Name, SourceLayer = src.SourceLayer, ViewName = src.ViewName, StoredProcedureName = src.StoredProcedureName
 WHEN NOT MATCHED BY TARGET THEN
-    INSERT (RaporKodu, Ad, KaynakKatman, ViewAdi, SpAdi)
-    VALUES (src.RaporKodu, src.Ad, src.KaynakKatman, src.ViewAdi, src.SpAdi);
+    INSERT (ReportCode, Name, SourceLayer, ViewName, StoredProcedureName)
+    VALUES (src.ReportCode, src.Name, src.SourceLayer, src.ViewName, src.StoredProcedureName);
 GO

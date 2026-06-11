@@ -1,8 +1,10 @@
 using MerkeziFinansalVeri.Api.Dtos;
+using MerkeziFinansalVeri.Infrastructure.Configuration;
 using MerkeziFinansalVeri.Infrastructure.Data;
 using MerkeziFinansalVeri.Infrastructure.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace MerkeziFinansalVeri.Api.Controllers;
 
@@ -11,17 +13,18 @@ namespace MerkeziFinansalVeri.Api.Controllers;
 public class VeriKaynagiController(
     AppDbContext dbContext,
     ITdConnectionService tdConnectionService,
+    IOptions<TdConnectionsOptions> tdOptions,
     IActivityLogService activityLogService) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<VeriKaynagiDto>>> GetList(CancellationToken cancellationToken)
     {
-        var items = await dbContext.VeriKaynaklari
+        var entities = await dbContext.VeriKaynaklari
             .AsNoTracking()
             .OrderBy(v => v.KatmanKodu)
-            .Select(v => ToDto(v))
             .ToListAsync(cancellationToken);
 
+        var items = entities.Select(ToDto).ToList();
         return Ok(items);
     }
 
@@ -53,7 +56,10 @@ public class VeriKaynagiController(
     }
 
     [HttpPost("{kaynakId:int}/test")]
-    public async Task<ActionResult<VeriKaynagiTestSonucDto>> Test(int kaynakId, CancellationToken cancellationToken)
+    public async Task<ActionResult<VeriKaynagiTestSonucDto>> Test(
+        int kaynakId,
+        [FromBody] VeriKaynagiUpdateDto? dto,
+        CancellationToken cancellationToken)
     {
         var entity = await dbContext.VeriKaynaklari
             .AsNoTracking()
@@ -64,7 +70,24 @@ public class VeriKaynagiController(
             return NotFound();
         }
 
-        var basarili = await tdConnectionService.TestConnectionAsync(entity.KatmanKodu, cancellationToken);
+        bool basarili;
+
+        if (dto is not null && !string.IsNullOrWhiteSpace(dto.Sunucu))
+        {
+            basarili = await tdConnectionService.TestConnectionAsync(new TdConnectionParams
+            {
+                KatmanKodu = entity.KatmanKodu,
+                Sunucu = dto!.Sunucu,
+                Veritabani = dto.Veritabani,
+                Port = dto.Port,
+                KimlikDogrulama = dto.KimlikDogrulama,
+                KullaniciAdi = dto.KullaniciAdi
+            }, cancellationToken);
+        }
+        else
+        {
+            basarili = await tdConnectionService.TestConnectionAsync(entity.KatmanKodu, cancellationToken);
+        }
 
         var kaynak = await dbContext.VeriKaynaklari
             .FirstOrDefaultAsync(v => v.KaynakId == kaynakId, cancellationToken);
@@ -79,21 +102,36 @@ public class VeriKaynagiController(
         {
             KatmanKodu = entity.KatmanKodu,
             Basarili = basarili,
-            Mesaj = basarili ? "Bağlantı başarılı." : "Bağlantı başarısız."
+            Mesaj = basarili ? "Bağlantı başarılı." : "Bağlantı başarısız. Sunucu, veritabanı ve kimlik doğrulama bilgilerini kontrol edin."
         });
     }
 
-    private static VeriKaynagiDto ToDto(Domain.Entities.VeriKaynagi v) => new()
+    private VeriKaynagiDto ToDto(Domain.Entities.VeriKaynagi v)
     {
-        KaynakId = v.KaynakId,
-        KatmanKodu = v.KatmanKodu,
-        Sunucu = v.Sunucu,
-        Veritabani = v.Veritabani,
-        Port = v.Port,
-        KimlikDogrulama = v.KimlikDogrulama,
-        KullaniciAdi = v.KullaniciAdi,
-        SifreSaklandi = v.SifreSaklandi,
-        Durum = v.Durum,
-        GuncellemeZamani = v.GuncellemeZamani
-    };
+        var dto = new VeriKaynagiDto
+        {
+            KaynakId = v.KaynakId,
+            KatmanKodu = v.KatmanKodu,
+            Sunucu = v.Sunucu,
+            Veritabani = v.Veritabani,
+            Port = v.Port,
+            KimlikDogrulama = v.KimlikDogrulama,
+            KullaniciAdi = v.KullaniciAdi,
+            SifreSaklandi = v.SifreSaklandi,
+            Durum = v.Durum,
+            GuncellemeZamani = v.GuncellemeZamani
+        };
+
+        if (tdOptions.Value.Connections.TryGetValue(v.KatmanKodu, out var entry)
+            && (string.IsNullOrWhiteSpace(dto.Sunucu) || dto.Sunucu.Contains("sirket.local", StringComparison.OrdinalIgnoreCase)))
+        {
+            dto.Sunucu = entry.Server;
+            dto.Veritabani = entry.Database;
+            dto.Port = entry.Port;
+            dto.KimlikDogrulama = entry.KimlikDogrulama;
+            dto.KullaniciAdi = entry.Username ?? dto.KullaniciAdi;
+        }
+
+        return dto;
+    }
 }

@@ -1,39 +1,39 @@
-USE [MGTV_Uygulama];
+USE [TDUTIL];
 GO
 
--- cfg.VeriKaynagi (veritabani-baglantisi.js DATABASES defaults)
-MERGE cfg.VeriKaynagi AS tgt
+-- VIB.cfg_DataSource (veritabani-baglantisi.js DATABASES defaults)
+MERGE VIB.cfg_DataSource AS tgt
 USING (VALUES
-    (N'TDSTG',   N'10.13.8.238',  N'TDSTG',   1433, N'windows'),
+    (N'TDSTG',   N'sql-stg-01.sirket.local',  N'TDSTG',   1433, N'sql'),
     (N'TDMAIN',  N'sql-main-01.sirket.local', N'TDMAIN',  1433, N'sql'),
     (N'TDREPORT', N'sql-rpt-01.sirket.local', N'TDREPORT', 1433, N'sql')
-) AS src(KatmanKodu, Sunucu, Veritabani, Port, KimlikDogrulama)
-ON tgt.KatmanKodu = src.KatmanKodu
+) AS src(LayerCode, ServerName, DatabaseName, Port, AuthenticationMode)
+ON tgt.LayerCode = src.LayerCode
 WHEN MATCHED THEN
     UPDATE SET
-        Sunucu = src.Sunucu,
-        Veritabani = src.Veritabani,
+        ServerName = src.ServerName,
+        DatabaseName = src.DatabaseName,
         Port = src.Port,
-        KimlikDogrulama = src.KimlikDogrulama,
-        GuncellemeZamani = SYSUTCDATETIME()
+        AuthenticationMode = src.AuthenticationMode,
+        UpdatedAt = SYSUTCDATETIME()
 WHEN NOT MATCHED BY TARGET THEN
-    INSERT (KatmanKodu, Sunucu, Veritabani, Port, KimlikDogrulama)
-    VALUES (src.KatmanKodu, src.Sunucu, src.Veritabani, src.Port, src.KimlikDogrulama);
+    INSERT (LayerCode, ServerName, DatabaseName, Port, AuthenticationMode)
+    VALUES (src.LayerCode, src.ServerName, src.DatabaseName, src.Port, src.AuthenticationMode);
 GO
 
--- cfg.SistemParametre — AktifMutabakatDonemId (2026-06)
+-- VIB.cfg_SystemParameter — AktifMutabakatDonemId (2026-06)
 DECLARE @AktifDonemId INT = (
-    SELECT DonemId FROM ops.MutabakatDonem WHERE YilAy = N'2026-06'
+    SELECT PeriodId FROM VIB.ops_ReconciliationPeriod WHERE YearMonth = N'2026-06'
 );
 
 IF @AktifDonemId IS NOT NULL
 BEGIN
-    MERGE cfg.SistemParametre AS tgt
-    USING (SELECT N'AktifMutabakatDonemId' AS Anahtar, CAST(@AktifDonemId AS NVARCHAR(500)) AS Deger) AS src
-    ON tgt.Anahtar = src.Anahtar
+    MERGE VIB.cfg_SystemParameter AS tgt
+    USING (SELECT N'AktifMutabakatDonemId' AS ParameterKey, CAST(@AktifDonemId AS NVARCHAR(500)) AS ParameterValue) AS src
+    ON tgt.ParameterKey = src.ParameterKey
     WHEN MATCHED THEN
-        UPDATE SET Deger = src.Deger, GuncellemeZamani = SYSUTCDATETIME()
+        UPDATE SET ParameterValue = src.ParameterValue, UpdatedAt = SYSUTCDATETIME()
     WHEN NOT MATCHED BY TARGET THEN
-        INSERT (Anahtar, Deger) VALUES (src.Anahtar, src.Deger);
+        INSERT (ParameterKey, ParameterValue) VALUES (src.ParameterKey, src.ParameterValue);
 END
 GO

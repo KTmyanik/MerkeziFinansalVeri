@@ -169,45 +169,50 @@
     <div class="page-area">
         <div class="page-body">
             <div class="vs-layout">
-                <header class="vs-intro">
+                <div class="vs-intro">
                     <div class="vs-placeholder-icon" aria-hidden="true">
                         <i class="ti ti-database"></i>
                     </div>
                     <h3>Veritabanı Sorgusu</h3>
-                    <p>Bu alanda kullanıcılar TDSTG, TDMAIN ve TDREPORT veritabanlarına güvenli sorgu gönderebilecek. SQL editörü, sonuç tablosu ve sorgu geçmişi burada yer alacak.</p>
+                    <p>TDSTG, TDMAIN ve TDREPORT katmanlarına yalnızca okuma (SELECT) sorguları gönderin. Bağlantı bilgileri <code>config/td-connections.json</code> dosyasından okunur.</p>
                     <div class="vs-db-tags">
                         <span class="vs-db-tag stg">TDSTG</span>
                         <span class="vs-db-tag main">TDMAIN</span>
                         <span class="vs-db-tag report">TDREPORT</span>
                     </div>
-                </header>
+                </div>
 
-                <section class="vs-workspace">
+                <div class="vs-workspace">
                     <div class="vs-toolbar">
                         <div class="vs-status">
-                            <span class="vs-status-dot" id="vsStatusDot"></span>
-                            <span id="vsStatusText">Bağlantı kontrol edilmedi</span>
+                            <span class="vs-status-dot" id="vsStatusDot" aria-hidden="true"></span>
+                            <span id="vsStatusText">API bağlantısı kontrol ediliyor…</span>
                         </div>
                         <div class="vs-toolbar-actions">
-                            <label class="vs-katman-label" for="vsKatmanSelect">Veritabanı</label>
-                            <select id="vsKatmanSelect" class="vs-katman-select"></select>
+                            <span class="vs-katman-label" for="vsKatmanSelect">Katman</span>
+                            <select id="vsKatmanSelect" class="vs-katman-select" aria-label="Veritabanı katmanı"></select>
+                            <span class="vs-conn-badge" id="vsConnBadge" title="Sunucu ve port"></span>
                             <button type="button" class="rbtn vs-action-btn" id="vsTestBtn">Bağlantıyı Test Et</button>
                             <button type="button" class="rbtn vs-action-btn primary" id="vsRunBtn">Sorguyu Çalıştır</button>
                         </div>
                     </div>
-                    <p class="vs-hint">Yalnızca SELECT sorguları. Ctrl+Enter ile çalıştırın. Bağlantı ayarları: Yönetim → Veritabanı Bağlantısı.</p>
+
+                    <p class="vs-hint" id="vsConfigHint">Bağlantı: config/td-connections.json · Yalnızca SELECT · Ctrl+Enter ile çalıştır</p>
+
                     <label class="vs-query-label" for="vsQueryInput">SQL sorgusu</label>
-                    <textarea id="vsQueryInput" class="vs-query-input" rows="8" spellcheck="false"></textarea>
+                    <textarea id="vsQueryInput" class="vs-query-input" spellcheck="false" placeholder="SELECT …"></textarea>
+
                     <div class="vs-meta" id="vsQueryMeta"></div>
-                    <div class="vs-error" id="vsQueryError" hidden></div>
+                    <div class="vs-error" id="vsQueryError" hidden role="alert"></div>
+
                     <div class="vs-results-wrap" id="vsResultsWrap">
+                        <p class="vs-empty" id="vsResultsEmpty">Sorgu çalıştırıldığında sonuçlar burada listelenir.</p>
                         <table class="vs-results-table">
                             <thead id="vsResultsHead"></thead>
                             <tbody id="vsResultsBody"></tbody>
                         </table>
-                        <p class="vs-empty" id="vsResultsEmpty">Sorgu çalıştırıldığında sonuçlar burada listelenir.</p>
                     </div>
-                </section>
+                </div>
             </div>
         </div>
     </div>

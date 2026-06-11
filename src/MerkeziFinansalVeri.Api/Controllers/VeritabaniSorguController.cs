@@ -1,8 +1,10 @@
 using MerkeziFinansalVeri.Api.Dtos;
 using MerkeziFinansalVeri.Domain.Entities;
+using MerkeziFinansalVeri.Infrastructure.Configuration;
 using MerkeziFinansalVeri.Infrastructure.Data;
 using MerkeziFinansalVeri.Infrastructure.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace MerkeziFinansalVeri.Api.Controllers;
 
@@ -12,10 +14,35 @@ public class VeritabaniSorguController(
     ITdConnectionService tdConnectionService,
     AppDbContext dbContext,
     IActivityLogService activityLogService,
+    IConfiguration configuration,
+    IOptions<TdConnectionsOptions> tdOptions,
     ILogger<VeritabaniSorguController> logger) : ControllerBase
 {
-    private const int MaxRows = 5000;
-    private const int TimeoutSeconds = 120;
+    [HttpGet("ayarlar")]
+    public ActionResult<VeritabaniSorguAyarDto> Ayarlar()
+    {
+        var katmanlar = tdOptions.Value.Connections
+            .OrderBy(k => k.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(k => new VeritabaniSorguKatmanDto
+            {
+                KatmanKodu = k.Key,
+                Sunucu = k.Value.Server,
+                Port = k.Value.Port,
+                Veritabani = k.Value.Database,
+                KimlikDogrulama = k.Value.KimlikDogrulama
+            })
+            .ToList();
+
+        return Ok(new VeritabaniSorguAyarDto
+        {
+            VarsayilanKatman = configuration["varsayilanKatman"] ?? "TDSTG",
+            MaxSatir = int.TryParse(configuration["maxSatir"], out var maxSatir) ? maxSatir : 5000,
+            SorguTimeoutSaniye = int.TryParse(configuration["sorguTimeoutSaniye"], out var timeout) ? timeout : 120,
+            VarsayilanSorgu = configuration["varsayilanSorgu"] ?? string.Empty,
+            ConfigDosyasi = "config/td-connections.json",
+            Katmanlar = katmanlar
+        });
+    }
 
     [HttpPost("calistir")]
     public async Task<ActionResult<VeritabaniSorguSonucDto>> Calistir(
@@ -27,12 +54,15 @@ public class VeritabaniSorguController(
             return BadRequest(new VeritabaniSorguSonucDto { Basarili = false, Hata = "Sorgu metni boş." });
         }
 
+        var maxRows = int.TryParse(configuration["maxSatir"], out var maxSatir) ? maxSatir : 5000;
+        var timeoutSeconds = int.TryParse(configuration["sorguTimeoutSaniye"], out var timeout) ? timeout : 120;
         var katman = string.IsNullOrWhiteSpace(dto.KatmanKodu) ? "TDSTG" : dto.KatmanKodu.Trim();
+
         var result = await tdConnectionService.ExecuteReadOnlyQueryAsync(
             katman,
             dto.Sql,
-            TimeoutSeconds,
-            MaxRows,
+            timeoutSeconds,
+            maxRows,
             cancellationToken);
 
         await TryLogExecutionAsync(katman, result, cancellationToken);
@@ -45,7 +75,7 @@ public class VeritabaniSorguController(
                 $"{katman}: {result.Hata}",
                 cancellationToken);
 
-            return Ok(ToDto(result, kisitlandi: false));
+            return Ok(ToDto(result, kisitlandi: false, maxRows));
         }
 
         await TryActivityLogAsync(
@@ -54,8 +84,8 @@ public class VeritabaniSorguController(
             $"{katman} — {result.SatirSayisi} satır, {result.SureMs} ms",
             cancellationToken);
 
-        var kisitlandi = result.SatirSayisi >= MaxRows;
-        return Ok(ToDto(result, kisitlandi));
+        var kisitlandi = result.SatirSayisi >= maxRows;
+        return Ok(ToDto(result, kisitlandi, maxRows));
     }
 
     [HttpPost("test/{katmanKodu}")]
@@ -66,7 +96,9 @@ public class VeritabaniSorguController(
         {
             KatmanKodu = katmanKodu,
             Basarili = basarili,
-            Mesaj = basarili ? "Bağlantı başarılı." : "Bağlantı başarısız. Yönetim → Veritabanı Bağlantısı ayarlarını kontrol edin."
+            Mesaj = basarili
+                ? "Bağlantı başarılı."
+                : "Bağlantı başarısız. config/td-connections.json dosyasını kontrol edin."
         });
     }
 
@@ -113,7 +145,7 @@ public class VeritabaniSorguController(
         }
     }
 
-    private static VeritabaniSorguSonucDto ToDto(TdQueryResult result, bool kisitlandi)
+    private static VeritabaniSorguSonucDto ToDto(TdQueryResult result, bool kisitlandi, int maxRows)
     {
         var kolonlar = result.Satirlar.Count > 0
             ? result.Satirlar[0].Keys.ToList()
@@ -128,7 +160,7 @@ public class VeritabaniSorguController(
             SatirSayisi = result.SatirSayisi,
             SureMs = result.SureMs,
             Kisitlandi = kisitlandi,
-            MaxSatir = MaxRows
+            MaxSatir = maxRows
         };
     }
 }

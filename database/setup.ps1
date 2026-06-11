@@ -1,4 +1,4 @@
-# MGTV_Uygulama veritabani kurulumu
+# TDUTIL veritabani kurulumu
 # SQL Server Management Studio veya sqlcmd ile calistirin.
 
 $ErrorActionPreference = "Stop"
@@ -13,7 +13,7 @@ $files = @(
     "database\seeds\005_audit_seed.sql"
 )
 
-$server = if ($env:SQL_SERVER) { $env:SQL_SERVER } else { "localhost" }
+$server = if ($env:SQL_SERVER) { $env:SQL_SERVER } else { "srvdev\PASIFIK" }
 
 Write-Host "Sunucu: $server"
 Write-Host "Scriptler sirayla calistirilacak..."

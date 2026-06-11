@@ -1,15 +1,9 @@
 (function () {
-    const DEFAULT_SQL = `SELECT name AS TableName, create_date AS CreateDate
+    const FALLBACK_SQL = `SELECT name AS TableName, create_date AS CreateDate
 FROM sys.tables
 ORDER BY name;`;
 
-    const KATMAN_LABEL = {
-        TDSTG: 'TDSTG',
-        TDMAIN: 'TDMAIN',
-        TDREPORT: 'TDREPORT'
-    };
-
-    let veriKaynaklari = [];
+    let ayarlar = null;
     let selectedKatman = 'TDSTG';
 
     function escapeHtml(str) {
@@ -46,6 +40,40 @@ ORDER BY name;`;
         if (meta) meta.textContent = text || '';
     }
 
+    function updateConnBadge(katmanKodu) {
+        const badge = document.getElementById('vsConnBadge');
+        if (!badge || !ayarlar?.katmanlar) return;
+
+        const katman = ayarlar.katmanlar.find(k => k.katmanKodu === katmanKodu);
+        if (!katman) {
+            badge.textContent = '';
+            return;
+        }
+
+        const port = katman.port === 1433 ? '' : `:${katman.port}`;
+        badge.textContent = `${katman.sunucu}${port} / ${katman.veritabani}`;
+        badge.title = `${katman.sunucu}:${katman.port} → ${katman.veritabani} (${katman.kimlikDogrulama})`;
+    }
+
+    function renderKatmanSelect() {
+        const sel = document.getElementById('vsKatmanSelect');
+        if (!sel) return;
+
+        const katmanlar = ayarlar?.katmanlar?.length
+            ? ayarlar.katmanlar
+            : [
+                { katmanKodu: 'TDSTG', veritabani: 'TDSTG' },
+                { katmanKodu: 'TDMAIN', veritabani: 'TDMAIN' },
+                { katmanKodu: 'TDREPORT', veritabani: 'TDREPORT' }
+            ];
+
+        sel.innerHTML = katmanlar.map(k =>
+            `<option value="${escapeHtml(k.katmanKodu)}" ${k.katmanKodu === selectedKatman ? 'selected' : ''}>${escapeHtml(k.katmanKodu)} — ${escapeHtml(k.veritabani)}</option>`
+        ).join('');
+
+        updateConnBadge(selectedKatman);
+    }
+
     function renderResults(payload) {
         const head = document.getElementById('vsResultsHead');
         const body = document.getElementById('vsResultsBody');
@@ -75,28 +103,39 @@ ORDER BY name;`;
         setMeta(meta);
     }
 
-    async function loadKaynaklar() {
-        try {
-            veriKaynaklari = await ApiClient.getVeriKaynaklari();
-        } catch (err) {
-            console.warn('Veri kaynakları yüklenemedi:', err);
-            veriKaynaklari = [];
+    function apiErrorMessage(err) {
+        const msg = err?.message || String(err);
+        if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+            return `API'ye ulaşılamıyor. Proje kökünde start-api.bat çalıştırın, sayfayı HTTP sunucusundan açın (file:// değil). Varsayılan API: ${ApiClient.baseUrl}`;
         }
-        syncKatmanSelect();
+        return msg;
     }
 
-    function syncKatmanSelect() {
-        const sel = document.getElementById('vsKatmanSelect');
-        if (!sel) return;
+    async function loadAyarlar() {
+        try {
+            ayarlar = await ApiClient.getVeritabaniSorguAyarlar();
+            selectedKatman = ayarlar.varsayilanKatman || 'TDSTG';
 
-        if (veriKaynaklari.length) {
-            sel.innerHTML = veriKaynaklari.map(v =>
-                `<option value="${escapeHtml(v.katmanKodu)}" ${v.katmanKodu === selectedKatman ? 'selected' : ''}>${escapeHtml(v.katmanKodu)} — ${escapeHtml(v.veritabani)}</option>`
-            ).join('');
-        } else {
-            sel.innerHTML = Object.keys(KATMAN_LABEL).map(k =>
-                `<option value="${k}" ${k === selectedKatman ? 'selected' : ''}>${k}</option>`
-            ).join('');
+            const hint = document.getElementById('vsConfigHint');
+            if (hint && ayarlar.configDosyasi) {
+                hint.textContent = `Bağlantı: ${ayarlar.configDosyasi} · Yalnızca SELECT · Ctrl+Enter ile çalıştır · max ${ayarlar.maxSatir} satır`;
+            }
+
+            const input = document.getElementById('vsQueryInput');
+            if (input && !input.value.trim() && ayarlar.varsayilanSorgu) {
+                input.value = ayarlar.varsayilanSorgu;
+            }
+
+            renderKatmanSelect();
+        } catch (err) {
+            console.warn('Sorgu ayarları yüklenemedi:', err);
+            ayarlar = null;
+            renderKatmanSelect();
+
+            const input = document.getElementById('vsQueryInput');
+            if (input && !input.value.trim()) input.value = FALLBACK_SQL;
+
+            setStatus('err', apiErrorMessage(err));
         }
     }
 
@@ -134,11 +173,16 @@ ORDER BY name;`;
 
         try {
             const res = await ApiClient.calistirVeritabaniSorgu({ katmanKodu: katman, sql });
+
             if (!res.basarili) {
                 setMeta('');
-                setError(res.hata || 'Sorgu hatası');
+                setError(res.hata || 'Sorgu başarısız.');
+                const wrap = document.getElementById('vsResultsWrap');
+                if (wrap) wrap.classList.remove('has-data');
+                setStatus('err', `${katman} — sorgu hatası`);
                 return;
             }
+
             renderResults(res);
             setStatus('ok', `${katman} — sorgu tamamlandı`);
         } catch (err) {
@@ -152,19 +196,12 @@ ORDER BY name;`;
         }
     }
 
-    function apiErrorMessage(err) {
-        const msg = err?.message || String(err);
-        if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
-            return `API'ye ulaşılamıyor. Proje klasöründe: dotnet run --project src\\MerkeziFinansalVeri.Api\\MerkeziFinansalVeri.Api.csproj — ardından sayfayı HTTP sunucusundan açın (file:// değil). Varsayılan API: ${ApiClient.baseUrl}`;
-        }
-        return msg;
-    }
-
     function bindEvents() {
         document.getElementById('vsTestBtn')?.addEventListener('click', testConnection);
         document.getElementById('vsRunBtn')?.addEventListener('click', runQuery);
         document.getElementById('vsKatmanSelect')?.addEventListener('change', e => {
             selectedKatman = e.target.value;
+            updateConnBadge(selectedKatman);
         });
         document.getElementById('vsQueryInput')?.addEventListener('keydown', e => {
             if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -175,11 +212,9 @@ ORDER BY name;`;
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
-        const input = document.getElementById('vsQueryInput');
-        if (input && !input.value.trim()) input.value = DEFAULT_SQL;
-
         bindEvents();
-        await loadKaynaklar();
+        await loadAyarlar();
+        if (document.getElementById('vsStatusDot')?.classList.contains('err')) return;
         testConnection();
     });
 })();
