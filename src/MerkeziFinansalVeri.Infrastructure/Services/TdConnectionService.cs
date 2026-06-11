@@ -3,12 +3,14 @@ using MerkeziFinansalVeri.Domain.Entities;
 using MerkeziFinansalVeri.Infrastructure.Data;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace MerkeziFinansalVeri.Infrastructure.Services;
 
 public class TdConnectionService(
     AppDbContext dbContext,
+    IConfiguration configuration,
     ILogger<TdConnectionService> logger) : ITdConnectionService
 {
     private static readonly HashSet<string> ReadOnlyPrefixes =
@@ -103,9 +105,50 @@ public class TdConnectionService(
 
     internal async Task<VeriKaynagi?> GetVeriKaynagiAsync(string katmanKodu, CancellationToken cancellationToken)
     {
-        return await dbContext.VeriKaynaklari
-            .AsNoTracking()
-            .FirstOrDefaultAsync(v => v.KatmanKodu == katmanKodu, cancellationToken);
+        try
+        {
+            var fromDb = await dbContext.VeriKaynaklari
+                .AsNoTracking()
+                .FirstOrDefaultAsync(v => v.KatmanKodu == katmanKodu, cancellationToken);
+
+            if (fromDb is not null)
+            {
+                return fromDb;
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "VeriKaynagi DB okunamadı, appsettings yedek kullanılacak: {KatmanKodu}", katmanKodu);
+        }
+
+        return GetKaynakFromConfig(katmanKodu);
+    }
+
+    private VeriKaynagi? GetKaynakFromConfig(string katmanKodu)
+    {
+        var section = configuration.GetSection($"TdConnections:{katmanKodu}");
+        if (!section.Exists())
+        {
+            return null;
+        }
+
+        var server = section["Server"];
+        var database = section["Database"];
+        if (string.IsNullOrWhiteSpace(server) || string.IsNullOrWhiteSpace(database))
+        {
+            return null;
+        }
+
+        return new VeriKaynagi
+        {
+            KaynakId = 0,
+            KatmanKodu = katmanKodu,
+            Sunucu = server,
+            Veritabani = database,
+            Port = section.GetValue("Port", 1433),
+            KimlikDogrulama = section["KimlikDogrulama"] ?? "windows",
+            KullaniciAdi = section["KullaniciAdi"]
+        };
     }
 
     private static SqlConnection CreateConnection(VeriKaynagi kaynak)
@@ -133,6 +176,11 @@ public class TdConnectionService(
 
     private async Task UpdateDurumAsync(VeriKaynagi kaynak, string durum, CancellationToken cancellationToken)
     {
+        if (kaynak.KaynakId <= 0)
+        {
+            return;
+        }
+
         var entity = await dbContext.VeriKaynaklari.FindAsync([kaynak.KaynakId], cancellationToken);
         if (entity is null)
         {

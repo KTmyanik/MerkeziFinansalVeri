@@ -17,7 +17,11 @@ public static class DependencyInjection
         services.AddScoped<ITdConnectionService, TdConnectionService>();
         services.AddScoped<IPermissionService, PermissionService>();
         services.AddScoped<IFarkVerenSyncService>(sp => sp.GetRequiredService<FarkVerenSyncService>());
-        services.AddHostedService<FarkVerenSyncService>();
+
+        if (configuration.GetValue("Sync:FarkVerenEnabled", true))
+        {
+            services.AddHostedService<FarkVerenSyncService>();
+        }
 
         return services;
     }
