@@ -11,7 +11,8 @@ namespace MerkeziFinansalVeri.Api.Controllers;
 public class VeritabaniSorguController(
     ITdConnectionService tdConnectionService,
     AppDbContext dbContext,
-    IActivityLogService activityLogService) : ControllerBase
+    IActivityLogService activityLogService,
+    ILogger<VeritabaniSorguController> logger) : ControllerBase
 {
     private const int MaxRows = 5000;
     private const int TimeoutSeconds = 120;
@@ -34,25 +35,23 @@ public class VeritabaniSorguController(
             MaxRows,
             cancellationToken);
 
-        await LogExecutionAsync(katman, result, cancellationToken);
+        await TryLogExecutionAsync(katman, result, cancellationToken);
 
         if (!result.Basarili)
         {
-            await activityLogService.LogAsync(
+            await TryActivityLogAsync(
                 "veritabani_sorgu",
                 "Sorgu hatası",
                 $"{katman}: {result.Hata}",
-                HttpContext.GetCurrentUserId(),
                 cancellationToken);
 
             return Ok(ToDto(result, kisitlandi: false));
         }
 
-        await activityLogService.LogAsync(
+        await TryActivityLogAsync(
             "veritabani_sorgu",
             "Sorgu çalıştırıldı",
             $"{katman} — {result.SatirSayisi} satır, {result.SureMs} ms",
-            HttpContext.GetCurrentUserId(),
             cancellationToken);
 
         var kisitlandi = result.SatirSayisi >= MaxRows;
@@ -71,19 +70,47 @@ public class VeritabaniSorguController(
         });
     }
 
-    private async Task LogExecutionAsync(string katman, TdQueryResult result, CancellationToken cancellationToken)
+    private async Task TryLogExecutionAsync(string katman, TdQueryResult result, CancellationToken cancellationToken)
     {
-        dbContext.SorguCalistirmaLoglari.Add(new SorguCalistirmaLog
+        try
         {
-            KatmanKodu = katman,
-            CalistirmaZamani = DateTime.UtcNow,
-            SatirSayisi = result.Basarili ? result.SatirSayisi : null,
-            SureMs = result.SureMs,
-            Hata = result.Hata,
-            KullaniciId = HttpContext.GetCurrentUserId()
-        });
+            dbContext.SorguCalistirmaLoglari.Add(new SorguCalistirmaLog
+            {
+                KatmanKodu = katman,
+                CalistirmaZamani = DateTime.UtcNow,
+                SatirSayisi = result.Basarili ? result.SatirSayisi : null,
+                SureMs = result.SureMs,
+                Hata = result.Hata,
+                KullaniciId = HttpContext.GetCurrentUserId()
+            });
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Sorgu çalıştırma logu yazılamadı (uygulama DB erişilemiyor olabilir).");
+        }
+    }
+
+    private async Task TryActivityLogAsync(
+        string olayTipi,
+        string baslik,
+        string? detay,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await activityLogService.LogAsync(
+                olayTipi,
+                baslik,
+                detay,
+                HttpContext.GetCurrentUserId(),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Aktivite logu yazılamadı.");
+        }
     }
 
     private static VeritabaniSorguSonucDto ToDto(TdQueryResult result, bool kisitlandi)
