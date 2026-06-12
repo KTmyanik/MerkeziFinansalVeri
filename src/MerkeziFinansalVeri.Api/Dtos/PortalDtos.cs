@@ -54,6 +54,14 @@ public sealed class VeriKalitesiKuralDto
     public string Durum { get; set; } = string.Empty;
 }
 
+public sealed class VkKurallarAyarDto
+{
+    public string KatmanKodu { get; set; } = "TDUTIL";
+    public string SorguDosyasi { get; set; } = "config/queries/vk-kurallar.sql";
+    public int MaxSatir { get; set; } = 5000;
+    public int SorguTimeoutSaniye { get; set; } = 120;
+}
+
 public sealed class VeriKalitesiGunlukSonucDto
 {
     public DateOnly CalistirmaTarihi { get; set; }

@@ -2,8 +2,10 @@ $ErrorActionPreference = 'Stop'
 Set-Location 'C:\Users\mesut\MerkeziFinansalVeri'
 
 Write-Host '=== Rebase temizligi ==='
-Remove-Item '_push_log.txt' -Force -ErrorAction SilentlyContinue
-git rebase --abort 2>$null
+Remove-Item '_push_log.txt', '_push_status.txt' -Force -ErrorAction SilentlyContinue
+if ((Test-Path '.git\rebase-merge') -or (Test-Path '.git\rebase-apply')) {
+    git rebase --abort
+}
 
 Write-Host '=== Uzak main aliniyor ==='
 git fetch origin

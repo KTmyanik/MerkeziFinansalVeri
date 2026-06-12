@@ -112,6 +112,8 @@
         // Portal / VK / Aktivite
         getPortalOzet() { return request('/portal/ozet'); },
         getVkKurallar() { return request('/veri-kalitesi/kurallar'); },
+        getVkKurallarAyarlar() { return request('/veri-kalitesi/kurallar/ayarlar'); },
+        getVkKurallarSorgu() { return request('/veri-kalitesi/kurallar/sorgu'); },
         getVkGunlukSonuclar(tarih) {
             const q = tarih ? `?tarih=${tarih}` : '';
             return request(`/veri-kalitesi/gunluk-sonuclar${q}`);

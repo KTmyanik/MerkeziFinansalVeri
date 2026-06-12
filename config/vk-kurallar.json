@@ -1,0 +1,8 @@
+{
+  "VkKurallar": {
+    "KatmanKodu": "TDUTIL",
+    "SorguDosyasi": "config/queries/vk-kurallar.sql",
+    "MaxSatir": 5000,
+    "SorguTimeoutSaniye": 120
+  }
+}

@@ -11,6 +11,12 @@ if (File.Exists(tdConfigPath))
     builder.Configuration.AddJsonFile(tdConfigPath, optional: true, reloadOnChange: true);
 }
 
+var vkKurallarConfigPath = Path.Combine(repoRoot, "config", "vk-kurallar.json");
+if (File.Exists(vkKurallarConfigPath))
+{
+    builder.Configuration.AddJsonFile(vkKurallarConfigPath, optional: true, reloadOnChange: true);
+}
+
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {

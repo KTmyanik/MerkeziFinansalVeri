@@ -21,6 +21,12 @@
       "Database": "TDREPORT",
       "Port": 1433,
       "KimlikDogrulama": "windows"
+    },
+    "TDUTIL": {
+      "Server": "10.13.8.238",
+      "Database": "TDUTIL",
+      "Port": 1433,
+      "KimlikDogrulama": "windows"
     }
   }
 }
