@@ -118,6 +118,7 @@
             const q = tarih ? `?tarih=${tarih}` : '';
             return request(`/veri-kalitesi/gunluk-sonuclar${q}`);
         },
+        getVkGunlukSonuclarSorgu() { return request('/veri-kalitesi/gunluk-sonuclar/sorgu'); },
         getAktiviteLog(limit = 20) { return request(`/aktivite-log?limit=${limit}`); },
 
         // Veri Kaynakları

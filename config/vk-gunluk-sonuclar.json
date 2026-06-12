@@ -1,0 +1,8 @@
+{
+  "VkGunlukSonuclar": {
+    "KatmanKodu": "TDUTIL",
+    "SorguDosyasi": "config/queries/vk-gunluk-sonuclar.sql",
+    "MaxSatir": 5000,
+    "SorguTimeoutSaniye": 120
+  }
+}

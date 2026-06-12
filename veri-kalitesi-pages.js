@@ -1,13 +1,7 @@
 (function () {
-    let DAILY_RESULTS = [];
     let vkKurallarAyarlar = null;
     let vkKurallarSorgu = null;
-
-    const STATUS_BADGE = {
-        ok: { class: 'ok', label: 'Başarılı' },
-        warn: { class: 'warn', label: 'Uyarı' },
-        fail: { class: 'fail', label: 'Hata' }
-    };
+    let vkGunlukSorgu = null;
 
     const VK_COLUMN_LABELS = {
         RuleId: 'Kural ID',
@@ -25,6 +19,18 @@
         ResponsibleAnalystName: 'Sorumlu Analist'
     };
 
+    const GUNLUK_COLUMN_LABELS = {
+        DataDate: 'Veri Tarihi',
+        TableName: 'Tablo',
+        FieldName: 'Alan',
+        ExactValue: 'Beklenen Değer',
+        ErrorDescription: 'Hata Açıklaması',
+        QualityId: 'Kalite ID',
+        QualityLevel: 'Kalite Seviyesi',
+        RuleId: 'Kural ID',
+        QualityProcedureName: 'Kalite Prosedürü'
+    };
+
     function escapeHtml(str) {
         return String(str ?? '')
             .replace(/&/g, '&amp;')
@@ -33,11 +39,15 @@
             .replace(/"/g, '&quot;');
     }
 
-    function columnLabel(col) {
-        return VK_COLUMN_LABELS[col] || col;
+    function apiErrorMessage(err) {
+        const msg = err?.message || String(err);
+        if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+            return `API'ye ulaşılamıyor. start-api.bat çalıştırın. Varsayılan: ${ApiClient.baseUrl}`;
+        }
+        return msg;
     }
 
-    function formatCell(col, val) {
+    function formatKurallarCell(col, val) {
         if (val === null || val === undefined) return '';
         const text = String(val);
 
@@ -59,13 +69,37 @@
         return escapeHtml(text);
     }
 
-    async function loadGunlukSonuclar() {
-        try {
-            DAILY_RESULTS = await ApiClient.getVkGunlukSonuclar();
-        } catch (err) {
-            console.error('Günlük sonuçlar yüklenemedi:', err);
-            DAILY_RESULTS = [];
+    function formatGunlukCell(col, val) {
+        if (val === null || val === undefined) return '';
+        if (col === 'QualityLevel') {
+            const level = Number(val);
+            if (level <= 1) return `<span class="vk-badge fail">${escapeHtml(val)}</span>`;
+            if (level <= 2) return `<span class="vk-badge warn">${escapeHtml(val)}</span>`;
+            return `<span class="vk-badge ok">${escapeHtml(val)}</span>`;
         }
+        return escapeHtml(String(val));
+    }
+
+    function buildResultTable(cols, rows, formatCell, columnLabels) {
+        const headerCells = cols.map(c =>
+            `<th>${escapeHtml(columnLabels[c] || c)}</th>`
+        ).join('');
+
+        const bodyRows = rows.map(row => {
+            const cells = cols.map(col => {
+                const display = formatCell(col, row[col]);
+                const title = row[col] === null || row[col] === undefined ? '' : String(row[col]);
+                return `<td title="${escapeHtml(title)}">${display}</td>`;
+            }).join('');
+            return `<tr>${cells}</tr>`;
+        }).join('');
+
+        const emptyRow = `<tr><td colspan="${cols.length || 1}">Kayıt bulunamadı.</td></tr>`;
+
+        return `<table class="vk-table">
+            <thead><tr>${headerCells}</tr></thead>
+            <tbody>${bodyRows || emptyRow}</tbody>
+        </table>`;
     }
 
     async function loadVkKurallarSorgu() {
@@ -82,19 +116,18 @@
             vkKurallarSorgu = await ApiClient.getVkKurallarSorgu();
         } catch (err) {
             console.error('VK kurallar sorgusu yüklenemedi:', err);
-            vkKurallarSorgu = {
-                basarili: false,
-                hata: apiErrorMessage(err)
-            };
+            vkKurallarSorgu = { basarili: false, hata: apiErrorMessage(err) };
         }
     }
 
-    function apiErrorMessage(err) {
-        const msg = err?.message || String(err);
-        if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
-            return `API'ye ulaşılamıyor. start-api.bat çalıştırın. Varsayılan: ${ApiClient.baseUrl}`;
+    async function loadVkGunlukSorgu() {
+        vkGunlukSorgu = null;
+        try {
+            vkGunlukSorgu = await ApiClient.getVkGunlukSonuclarSorgu();
+        } catch (err) {
+            console.error('Günlük sonuçlar sorgusu yüklenemedi:', err);
+            vkGunlukSorgu = { basarili: false, hata: apiErrorMessage(err) };
         }
-        return msg;
     }
 
     function buildKurallarHTML() {
@@ -135,16 +168,6 @@
         if (data.sureMs != null) meta += ` · ${data.sureMs} ms`;
         if (data.kisitlandi) meta += ` · ilk ${data.maxSatir} satır`;
 
-        const headerCells = cols.map(c => `<th>${escapeHtml(columnLabel(c))}</th>`).join('');
-        const bodyRows = rows.map(row => {
-            const cells = cols.map(col => {
-                const display = formatCell(col, row[col]);
-                const title = row[col] === null || row[col] === undefined ? '' : String(row[col]);
-                return `<td title="${escapeHtml(title)}">${display}</td>`;
-            }).join('');
-            return `<tr>${cells}</tr>`;
-        }).join('');
-
         return `<section class="vk-layout">
             <div class="vk-head">
                 <h3>Veri Kalitesi Kuralları</h3>
@@ -157,53 +180,57 @@
                 </div>
                 <p class="vk-hint">Sorgu dosyası: <code>${escapeHtml(sqlDosya)}</code> · Bağlantı: <code>config/td-connections.json</code> (${escapeHtml(katman)})</p>
                 <div class="vk-scroll">
-                    <table class="vk-table">
-                        <thead><tr>${headerCells}</tr></thead>
-                        <tbody>${bodyRows || '<tr><td colspan="' + cols.length + '">Kayıt bulunamadı.</td></tr>'}</tbody>
-                    </table>
+                    ${buildResultTable(cols, rows, formatKurallarCell, VK_COLUMN_LABELS)}
                 </div>
             </div>
         </section>`;
     }
 
     function buildGunlukSonuclarHTML() {
-        const rows = DAILY_RESULTS.map(r => {
-            const badge = STATUS_BADGE[r.sonuc] || { class: '', label: r.sonuc };
-            return `
-            <tr>
-                <td>${r.calistirmaTarihi}</td>
-                <td>${r.kuralId}</td>
-                <td>${r.kuralAdi}</td>
-                <td>${r.gecenSayi}</td>
-                <td>${r.hataliSayi}</td>
-                <td><span class="vk-badge ${badge.class}">${badge.label}</span></td>
-            </tr>`;
-        }).join('');
+        const data = vkGunlukSorgu;
+
+        if (!data) {
+            return `<section class="vk-layout">
+                <div class="vk-head">
+                    <h3>Günlük Kural Sonuçları</h3>
+                    <p>Bugünkü başarısız kural sonuçları yükleniyor…</p>
+                </div>
+                <div class="vk-card vk-loading">Sonuçlar getiriliyor…</div>
+            </section>`;
+        }
+
+        if (!data.basarili) {
+            return `<section class="vk-layout">
+                <div class="vk-head">
+                    <h3>Günlük Kural Sonuçları</h3>
+                    <p>Bugünkü başarısız kural kayıtları</p>
+                </div>
+                <div class="vk-error" role="alert">${escapeHtml(data.hata || 'Sonuçlar alınamadı.')}</div>
+                <div class="vk-card vk-empty">Günlük sonuçlar listelenemedi.</div>
+            </section>`;
+        }
+
+        const cols = data.kolonlar || [];
+        const rows = data.satirlar || [];
+
+        let meta = `${data.satirSayisi ?? rows.length} kayıt`;
+        if (data.sureMs != null) meta += ` · ${data.sureMs} ms`;
+        if (data.kisitlandi) meta += ` · ilk ${data.maxSatir} satır gösterildi`;
+
+        const today = new Date().toLocaleDateString('tr-TR');
 
         return `<section class="vk-layout">
             <div class="vk-head">
                 <h3>Günlük Kural Sonuçları</h3>
-                <p>Kuralların günlük çalışma özeti ve hata sayıları</p>
+                <p>Bugün (${today}) başarısız olan aktif kurallar</p>
             </div>
             <div class="vk-card">
                 <div class="vk-card-head">
-                    <h4>Son Çalıştırmalar</h4>
-                    <span>Son 2 gün</span>
+                    <h4>Başarısız Sonuçlar</h4>
+                    <span>${meta}</span>
                 </div>
                 <div class="vk-scroll">
-                    <table class="vk-table">
-                        <thead>
-                            <tr>
-                                <th>Tarih</th>
-                                <th>Kural Kodu</th>
-                                <th>Kural Adı</th>
-                                <th>Geçen</th>
-                                <th>Hatalı</th>
-                                <th>Sonuç</th>
-                            </tr>
-                        </thead>
-                        <tbody>${rows}</tbody>
-                    </table>
+                    ${buildResultTable(cols, rows, formatGunlukCell, GUNLUK_COLUMN_LABELS)}
                 </div>
             </div>
         </section>`;
@@ -214,7 +241,8 @@
         if (!el) return;
 
         if (type === 'gunluk') {
-            await loadGunlukSonuclar();
+            el.innerHTML = buildGunlukSonuclarHTML();
+            await loadVkGunlukSorgu();
             el.innerHTML = buildGunlukSonuclarHTML();
             return;
         }

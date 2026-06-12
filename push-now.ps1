@@ -16,13 +16,11 @@ $porcelain = git status --porcelain
 if ($porcelain) {
     Write-Host '=== commit ==='
     git commit -m @"
-Veri kalitesi kurallari: dosyadan SQL sorgusu
+Gunluk kural sonuclari: dosyadan SQL sorgusu
 
-- config/queries/vk-kurallar.sql ile DQ.Rule sorgusu
-- config/vk-kurallar.json yapilandirmasi
-- VeriKalitesiController kurallar/sorgu API
-- veri-kalitesi-kurallari sayfasi SQL sonuc tablosu
-- TDUTIL baglantisi td-connections.json icinde
+- config/queries/vk-gunluk-sonuclar.sql ile bugunun basarisiz sonuclari
+- config/vk-gunluk-sonuclar.json yapilandirmasi
+- gunluk-sonuclar/sorgu API ve arayuz (sorgu ekranda gosterilmez)
 "@
 } else {
     Write-Host 'Yeni commit yok, push deneniyor...'

@@ -17,6 +17,12 @@ if (File.Exists(vkKurallarConfigPath))
     builder.Configuration.AddJsonFile(vkKurallarConfigPath, optional: true, reloadOnChange: true);
 }
 
+var vkGunlukConfigPath = Path.Combine(repoRoot, "config", "vk-gunluk-sonuclar.json");
+if (File.Exists(vkGunlukConfigPath))
+{
+    builder.Configuration.AddJsonFile(vkGunlukConfigPath, optional: true, reloadOnChange: true);
+}
+
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {

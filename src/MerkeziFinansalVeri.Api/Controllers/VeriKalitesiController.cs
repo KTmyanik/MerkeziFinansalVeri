@@ -18,70 +18,21 @@ public class VeriKalitesiController(
     private string RepoRoot => Path.GetFullPath(Path.Combine(environment.ContentRootPath, "..", ".."));
 
     [HttpGet("kurallar/ayarlar")]
-    public ActionResult<VkKurallarAyarDto> GetKurallarAyarlar()
-    {
-        return Ok(new VkKurallarAyarDto
-        {
-            KatmanKodu = configuration["VkKurallar:KatmanKodu"] ?? "TDUTIL",
-            SorguDosyasi = configuration["VkKurallar:SorguDosyasi"] ?? "config/queries/vk-kurallar.sql",
-            MaxSatir = int.TryParse(configuration["VkKurallar:MaxSatir"], out var maxSatir) ? maxSatir : 5000,
-            SorguTimeoutSaniye = int.TryParse(configuration["VkKurallar:SorguTimeoutSaniye"], out var timeout) ? timeout : 120
-        });
-    }
+    public ActionResult<VkKurallarAyarDto> GetKurallarAyarlar() =>
+        Ok(ReadKurallarAyarlar());
 
     [HttpGet("kurallar/sorgu")]
-    public async Task<ActionResult<VeritabaniSorguSonucDto>> GetKurallarSorgu(CancellationToken cancellationToken)
+    public Task<ActionResult<VeritabaniSorguSonucDto>> GetKurallarSorgu(CancellationToken cancellationToken)
     {
-        var ayarlar = new VkKurallarAyarDto
-        {
-            KatmanKodu = configuration["VkKurallar:KatmanKodu"] ?? "TDUTIL",
-            SorguDosyasi = configuration["VkKurallar:SorguDosyasi"] ?? "config/queries/vk-kurallar.sql",
-            MaxSatir = int.TryParse(configuration["VkKurallar:MaxSatir"], out var maxSatir) ? maxSatir : 5000,
-            SorguTimeoutSaniye = int.TryParse(configuration["VkKurallar:SorguTimeoutSaniye"], out var timeout) ? timeout : 120
-        };
+        var ayarlar = ReadKurallarAyarlar();
+        return ExecuteSqlFileAsync(ayarlar.KatmanKodu, ayarlar.SorguDosyasi, ayarlar.SorguTimeoutSaniye, ayarlar.MaxSatir, cancellationToken);
+    }
 
-        var sqlPath = Path.Combine(RepoRoot, ayarlar.SorguDosyasi.Replace('/', Path.DirectorySeparatorChar));
-        if (!System.IO.File.Exists(sqlPath))
-        {
-            return NotFound(new VeritabaniSorguSonucDto
-            {
-                Basarili = false,
-                Hata = $"Sorgu dosyası bulunamadı: {ayarlar.SorguDosyasi}"
-            });
-        }
-
-        string sql;
-        try
-        {
-            sql = await System.IO.File.ReadAllTextAsync(sqlPath, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "VK kurallar sorgu dosyası okunamadı: {Path}", sqlPath);
-            return StatusCode(500, new VeritabaniSorguSonucDto
-            {
-                Basarili = false,
-                Hata = "Sorgu dosyası okunamadı."
-            });
-        }
-
-        if (string.IsNullOrWhiteSpace(sql))
-        {
-            return BadRequest(new VeritabaniSorguSonucDto
-            {
-                Basarili = false,
-                Hata = "Sorgu dosyası boş."
-            });
-        }
-
-        var result = await tdConnectionService.ExecuteReadOnlyQueryAsync(
-            ayarlar.KatmanKodu,
-            sql,
-            ayarlar.SorguTimeoutSaniye,
-            ayarlar.MaxSatir,
-            cancellationToken);
-
-        return Ok(ToDto(result, ayarlar.MaxSatir));
+    [HttpGet("gunluk-sonuclar/sorgu")]
+    public Task<ActionResult<VeritabaniSorguSonucDto>> GetGunlukSonuclarSorgu(CancellationToken cancellationToken)
+    {
+        var ayarlar = ReadGunlukSonuclarAyarlar();
+        return ExecuteSqlFileAsync(ayarlar.KatmanKodu, ayarlar.SorguDosyasi, ayarlar.SorguTimeoutSaniye, ayarlar.MaxSatir, cancellationToken);
     }
 
     [HttpGet("kurallar")]
@@ -139,6 +90,73 @@ public class VeriKalitesiController(
             .ToListAsync(cancellationToken);
 
         return Ok(items);
+    }
+
+    private VkKurallarAyarDto ReadKurallarAyarlar() => new()
+    {
+        KatmanKodu = configuration["VkKurallar:KatmanKodu"] ?? "TDUTIL",
+        SorguDosyasi = configuration["VkKurallar:SorguDosyasi"] ?? "config/queries/vk-kurallar.sql",
+        MaxSatir = int.TryParse(configuration["VkKurallar:MaxSatir"], out var maxSatir) ? maxSatir : 5000,
+        SorguTimeoutSaniye = int.TryParse(configuration["VkKurallar:SorguTimeoutSaniye"], out var timeout) ? timeout : 120
+    };
+
+    private VkGunlukSonuclarAyarDto ReadGunlukSonuclarAyarlar() => new()
+    {
+        KatmanKodu = configuration["VkGunlukSonuclar:KatmanKodu"] ?? "TDUTIL",
+        SorguDosyasi = configuration["VkGunlukSonuclar:SorguDosyasi"] ?? "config/queries/vk-gunluk-sonuclar.sql",
+        MaxSatir = int.TryParse(configuration["VkGunlukSonuclar:MaxSatir"], out var maxSatir) ? maxSatir : 5000,
+        SorguTimeoutSaniye = int.TryParse(configuration["VkGunlukSonuclar:SorguTimeoutSaniye"], out var timeout) ? timeout : 120
+    };
+
+    private async Task<ActionResult<VeritabaniSorguSonucDto>> ExecuteSqlFileAsync(
+        string katmanKodu,
+        string sorguDosyasi,
+        int timeoutSeconds,
+        int maxRows,
+        CancellationToken cancellationToken)
+    {
+        var sqlPath = Path.Combine(RepoRoot, sorguDosyasi.Replace('/', Path.DirectorySeparatorChar));
+        if (!System.IO.File.Exists(sqlPath))
+        {
+            return NotFound(new VeritabaniSorguSonucDto
+            {
+                Basarili = false,
+                Hata = $"Sorgu dosyası bulunamadı: {sorguDosyasi}"
+            });
+        }
+
+        string sql;
+        try
+        {
+            sql = await System.IO.File.ReadAllTextAsync(sqlPath, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Sorgu dosyası okunamadı: {Path}", sqlPath);
+            return StatusCode(500, new VeritabaniSorguSonucDto
+            {
+                Basarili = false,
+                Hata = "Sorgu dosyası okunamadı."
+            });
+        }
+
+        if (string.IsNullOrWhiteSpace(sql))
+        {
+            return BadRequest(new VeritabaniSorguSonucDto
+            {
+                Basarili = false,
+                Hata = "Sorgu dosyası boş."
+            });
+        }
+
+        var result = await tdConnectionService.ExecuteReadOnlyQueryAsync(
+            katmanKodu,
+            sql,
+            timeoutSeconds,
+            maxRows,
+            cancellationToken);
+
+        return Ok(ToDto(result, maxRows));
     }
 
     private static VeritabaniSorguSonucDto ToDto(TdQueryResult result, int maxRows)
